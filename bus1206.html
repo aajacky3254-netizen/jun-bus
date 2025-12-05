@@ -1,0 +1,1170 @@
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>每日搭乘調查</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <style>
+    body {
+      font-family: "Microsoft JhengHei", Arial, sans-serif;
+      background-color: #f9fafb;
+      margin: 20px;
+    }
+
+    h1 {
+      color: #2563eb;
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      font-weight: 600;
+      color: #374151;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: #2563eb;
+      outline: none;
+    }
+
+    button {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 15px;
+      margin-right: 10px;
+      margin-bottom: 5px; /* 避免手機版按鈕擠在一起 */
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    button:hover {
+      background-color: #1e40af;
+    }
+
+    /* 針對「全部刪除」按鈕的特殊顏色 */
+    .delete-all-btn {
+        background-color: #dc2626; /* 紅色 */
+    }
+
+    .delete-all-btn:hover {
+        background-color: #b91c1c;
+    }
+
+    /* 針對「統計」按鈕的特殊顏色 */
+    .stats-btn {
+        background-color: #7c3aed; /* 紫色 */
+    }
+    .stats-btn:hover {
+        background-color: #6d28d9;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    table th, table td {
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      text-align: center;
+    }
+
+    table tbody tr:nth-child(even) {
+      background-color: #f3f4f6;
+    }
+
+    /* --- 統計模態視窗 (Modal) CSS --- */
+    .modal {
+        display: none; 
+        position: fixed; 
+        z-index: 1000; 
+        left: 0;
+        top: 0;
+        width: 100%; 
+        height: 100%; 
+        overflow: auto; 
+        background-color: rgba(0,0,0,0.5); 
+    }
+
+    .modal-content {
+        background-color: #fefefe;
+        margin: 5% auto; 
+        padding: 20px;
+        border: 1px solid #888;
+        width: 90%; 
+        max-width: 600px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .close-btn {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    .close-btn:hover,
+    .close-btn:focus {
+        color: black;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .stat-section {
+        margin-bottom: 25px;
+    }
+    .stat-section h3 {
+        border-bottom: 2px solid #e5e7eb;
+        padding-bottom: 5px;
+        color: #374151;
+    }
+    
+    /* 統計長條圖樣式 */
+    .stat-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+    .stat-label {
+        width: 120px;
+        text-align: right;
+        padding-right: 10px;
+        font-weight: bold;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .stat-bar-container {
+        flex-grow: 1;
+        background-color: #e5e7eb;
+        height: 20px;
+        border-radius: 10px;
+        overflow: hidden;
+        position: relative;
+    }
+    .stat-bar {
+        background-color: #3b82f6;
+        height: 100%;
+        border-radius: 10px 0 0 10px;
+    }
+    .stat-value {
+        position: absolute;
+        right: 5px;
+        top: 0;
+        line-height: 20px;
+        font-size: 12px;
+        color: #374151;
+    }
+    .summary-cards {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+    .summary-card {
+        background: #eff6ff;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        width: 48%;
+    }
+    .summary-number {
+        font-size: 24px;
+        font-weight: bold;
+        color: #2563eb;
+    }
+  </style>
+</head>
+<body>
+  <h1>每日搭乘調查</h1>
+  <div id="authSection" style="margin-bottom: 30px; padding: 15px; border: 1px solid #d1d5db; border-radius: 8px;">
+    <h2>使用者認證 (跨裝置同步)</h2>
+    <div id="loginForm">
+      <input type="email" id="email" placeholder="Email" style="margin-bottom: 5px; padding: 10px; border-radius: 4px;">
+      <input type="password" id="password" placeholder="密碼" style="margin-bottom: 10px; padding: 10px; border-radius: 4px;">
+      <button type="button" onclick="login()">登入</button>
+      <button type="button" onclick="signup()">註冊</button>
+    </div>
+    <div id="userInfo" style="display:none;">
+      <p>目前登入：<span id="userEmail" style="font-weight: bold;"></span></p>
+      <button type="button" onclick="logout()">登出</button>
+    </div>
+  </div>
+  <form id="surveyForm">
+    <div class="form-group">
+		  <label for="timestamp">時間戳記</label>
+		  <input type="text" id="timestamp" readonly> 
+		</div>
+
+		<div class="form-group">
+		  <label for="weekday">星期</label>
+		  <input type="text" id="weekday" readonly>
+		</div>
+
+    <div class="form-group">
+      <label for="operator">客運業者</label>
+      <select id="operator" name="operator" required>
+        <option value="" disabled selected>--- 請選擇客運業者 ---</option>
+         <optgroup label="基隆/新北/臺北">
+              <option value="KeelungCity">基隆市公車處</option>
+              <option value="KeelungBus">基隆客運</option>
+              <option value="CapitalBus">首都客運</option>
+              <option value="TaipeiBus">臺北客運</option>
+              <option value="ZhinanBus">指南客運</option>
+              <option value="NewTaipeiBus">新北客運</option>
+              <option value="SanChung">三重客運</option>
+              <option value="KuoKuang">國光客運</option>
+              <option value="MetropolitanTransport">大都會客運</option>
+              <option value="ZhongxingBus">中興巴士</option>
+              <option value="Kuang-HuaBus">光華巴士</option>
+              <option value="DaNan">大南汽車</option>
+              <option value="HsinBus">欣欣客運</option>
+              <option value="SindianBus">新店客運</option>
+              <option value="TamshuiBus">淡水客運</option>
+              <option value="TaoyuanBus">桃園客運</option>
+              <option value="FuhobusInc">福和客運</option>
+              <option value="RoyalBus">皇家客運</option>
+              <option value="howtai">豪泰客運</option>
+              <option value="southeastBus">東南客運</option>
+              <option value="CitiAirBus">大有巴士</option>
+            </optgroup>
+            <optgroup label="桃園">
+              <option value="TaoyuanBus">桃園客運</option>
+              <option value="ZhongliBus">中壢客運</option>
+              <option value="HsinchuBus">新竹客運</option>
+              <option value="YatungBus">亞通客運</option>
+              <option value="UnitedBus">統聯客運</option>
+              <option value="SanChung">三重客運</option>
+              <option value="ZhinanBus">指南客運</option>
+              <option value="ChampionTransportation">金台客運</option>
+            </optgroup>
+             <optgroup label="新竹/苗栗">
+              <option value="HsinchuBus">新竹客運</option>
+              <option value="KuoKuang">國光客運</option>
+              <option value="ChampionTransportation">金牌客運</option>
+              <option value="YosemiteBus">科技之星</option>
+              <option value="MiaoLi">苗栗客運</option>
+              <option value="Jet-ChenBus">捷乘客運</option>
+              <option value="Yi-JetTechIntegration">亦捷科際</option>
+              <option value="FengyuanBus">豐原客運</option>
+            </optgroup>
+            <optgroup label="臺中市各業者">
+              <option value="TaichungBus">臺中客運</option>
+              <option value="UnitedBus">統聯客運</option>
+              <option value="GeyaBus">巨業交通</option>
+              <option value="ChuanHang">全航客運</option>
+              <option value="FengyuanBus">豐原客運</option>
+              <option value="southeastBus">東南客運</option>
+              <option value="MiaoLiBus">苗栗客運</option>
+              <option value="UnitedBus1">中台灣客運</option>
+              <option value="HO-HSINBus">和欣客運</option>
+              <option value="Chung-LuBus">中鹿客運</option>
+              <option value="AllDayBus">總達客運</option>
+              <option value="KuoKuang">國光客運</option>
+              <option value="freego">建明客運</option>
+              <option value="RuiyiTransportation">睿奕交通</option>
+            </optgroup>
+            <optgroup label="彰化">
+              <option value="ChanghuaBus">彰化客運</option>
+              <option value="YuanLinBus">員林客運</option>
+              <option value="Chung-LuBus">中鹿客運</option>
+              <option value="TaichungBus">臺中客運</option>
+              <option value="GeyaBus">巨業交通</option>
+              <option value="taisibus">台西客運</option>
+              <option value="UnitedBus">統聯客運</option>
+              <option value="KuoKuang">國光客運</option>
+              <option value="NANTOUBUS">南投客運</option>
+              <option value="FengyuanBus">豐原客運</option>
+              <option value="southeastBus">東南客運</option>
+              <option value="freego">建明客運</option>
+            </optgroup>
+            <optgroup label="南投">
+              <option value="NANTOUBUS">南投客運</option>
+              <option value="ChanghuaBus">彰化客運</option>
+              <option value="YuanLinBus">員林客運</option>
+              <option value="AllDayBus">總達客運</option>
+              <option value="TaichungBus">臺中客運</option>
+              <option value="goto307">杉林溪客運</option>
+              <option value="GreenTransit">豐榮客運</option>
+              <option value="ChuanHang">全航客運</option>
+              <option value="UnitedBus">統聯客運</option>
+            </optgroup>
+            <optgroup label="雲林">
+              <option value="taisibus">台西客運</option>
+              <option value="YunlinBus">雲林客運</option>
+              <option value="SOLARbus">日統客運</option>
+              <option value="ChiayiBus">嘉義客運</option>
+            </optgroup>
+            <optgroup label="嘉義">
+              <option value="ChiayiCountyBus">嘉義縣公車處</option>
+              <option value="ChiayiBus">嘉義客運</option>
+              <option value="taisibus">台西客運</option>
+              <option value="YunlinBus">雲林客運</option>
+              <option value="AlishanBus">阿里山客運</option>
+              <option value="KuoKuang">國光客運</option>
+              <option value="Jet-ChenBus">捷乘客運</option>
+            </optgroup>
+            <optgroup label="臺南">
+              <option value="SinhuaBus">興南客運</option>
+              <option value="SingingBus">新營客運</option>
+              <option value="TainanBus">府城客運</option>
+              <option value="Han-ChengBus">漢程客運</option>
+              <option value="GeyaBus">巨業交通</option>
+              <option value="UnitedBus">統聯客運</option>
+              <option value="KaohsiungBus">高雄客運</option>
+              <option value="E-DaBus">義大客運</option>
+            </optgroup>
+            <optgroup label="高雄">
+              <option value="KaohsiungBus">高雄客運</option>
+              <option value="SouthTaiwanBus">南臺灣客運</option>
+              <option value="Han-ChengBus">漢程客運</option>
+              <option value="GreatCityLifeBus">港都客運</option>
+              <option value="E-DaBus">義大客運</option>
+              <option value="UnitedBus">統聯客運</option>
+              <option value="southeastBus">東南客運</option>
+            </optgroup>
+            <optgroup label="屏東">
+              <option value="PingTungBus">屏東客運</option>
+              <option value="KaohsiungBus">高雄客運</option>
+              <option value="Jet-ChenBus">捷乘客運</option>
+            </optgroup>
+            <optgroup label="宜蘭">
+              <option value="MetropolitanTransport">大都會客運</option>
+              <option value="CapitalBus">首都客運</option>
+              <option value="KamalanBus">葛瑪蘭客運</option>
+              <option value="KuoKuang">國光客運</option>
+            </optgroup>
+            <optgroup label="花蓮">
+              <option value="TarokoBus">太魯閣客運</option>
+              <option value="hopelandbus">華聯客運</option>
+              <option value="UnitedBus">統聯客運</option>
+              <option value="DiingDongBus">鼎東客運</option>
+              <option value="ShingDongBus">興東客運</option>
+            </optgroup>
+            <optgroup label="台東">
+              <option value="PuyumaTransportation">普悠瑪客運</option>
+              <option value="DiingDongBus">鼎東客運</option>
+              <option value="EasternTopTransportation">東台灣客運</option>
+              <option value="ShingDongBus">興東客運</option>
+            </optgroup>
+             <optgroup label="離島">
+              <option value="phpto">澎湖縣公車處</option>
+              <option value="matsuebus">連江縣公共車船管理處</option>
+              <option value="Kinmen">金門縣公共車船管理處</option>
+            </optgroup>
+            <optgroup label="國道/長途客運">
+              <option value="KuoKuang">國光客運</option>
+              <option value="UnitedBus">統聯客運</option>
+              <option value="CapitalBus">首都客運</option>
+              <option value="HO-HSINBus">和欣客運</option>
+              <option value="KamalanBus">葛瑪蘭客運</option>
+              <option value="YatungBus">亞通客運</option>
+              <option value="TailianBus">台聯客運</option>
+              <option value="KeelungBus">基隆客運</option>
+              <option value="NewTaipeiBus">新北客運</option>
+              <option value="SanChung">三重客運</option>
+              <option value="SindianBus">新店客運</option>
+              <option value="TaoyuanBus">桃園客運</option>
+              <option value="HsinchuBus">新竹客運</option>
+              <option value="TaichungBus">臺中客運</option>
+              <option value="AllDayBus">總達客運</option>
+              <option value="SinhuaBus">興南客運</option>
+              <option value="CitiAirBus">大有巴士</option>
+              <option value="howtai">豪泰客運</option>
+            </optgroup>
+	    <optgroup label="其他">
+            <option value="Other">其他業者 (請在備註欄註明)</option>
+          </select>
+    </div>
+	<div class="form-group">
+  <label for="manufacturer">車廠</label>
+  <select id="manufacturer" name="manufacturer" required>
+    <option value="" disabled selected>--- 請先選擇客運業者 ---</option>
+ </select>
+</div>
+
+    <div class="form-group">
+      <label>路線號碼</label>
+      <input type="text" id="routeCode">
+    </div>
+
+    <div class="form-group">
+      <label>車號</label>
+      <input type="text" id="busNumber" required>
+    </div>
+
+    <label>車型</label>
+  <select id="busType" name="busType" required>
+  <option value="" disabled selected>--- 請選擇車型 ---</option>
+  <option value="dieselbus">柴油巴士</option>
+  <option value="electricbus">電動巴士</option>
+  <option value="articulatedbus">雙節巴士</option>
+  <option value="minibus">小型巴士</option>
+  <option value="Freewaybusservice">國道客運</option>
+  <option value="Other">其他</option>
+</select>
+
+    <div class="form-group">
+      <label>備註</label>
+      <textarea id="note"></textarea>
+    </div>
+
+    <button type="button" onclick="saveData()">儲存紀錄</button>
+    <button type="button" onclick="saveEdit()">儲存修改</button>
+    <button type="button" onclick="deleteRecord()">刪除紀錄</button>
+    <button type="button" onclick="exportCSV()">匯出 CSV</button>
+    <button type="button" onclick="showStats()" class="stats-btn">📊 統計資料</button>
+    <button type="button" onclick="deleteAllRecords()" class="delete-all-btn">全部刪除</button>
+    
+    <input type="file" id="importFile" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleFileSelect(this)">
+    <button type="button" onclick="document.getElementById('importFile').click()" style="background-color: #10b981;">匯入 Excel</button>
+  </form>
+
+  <h2>紀錄清單</h2>
+  <table border="1" id="recordTable">
+    <thead>
+      <tr>
+        <th>時間戳記</th><th>星期</th><th>客運業者</th>
+        <th>車廠</th><th>路線碼</th><th>車號</th>
+        <th>車型</th><th>備註</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div id="statsModal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeStats()">&times;</span>
+      <h2 style="text-align: center; color: #2563eb;">🚌 搭乘統計分析</h2>
+      
+      <div class="summary-cards">
+          <div class="summary-card">
+              <div>總搭乘次數</div>
+              <div class="summary-number" id="totalRides">0</div>
+          </div>
+           <div class="summary-card">
+              <div>不重複車號</div>
+              <div class="summary-number" id="uniqueBuses">0</div>
+          </div>
+      </div>
+
+      <div class="stat-section">
+          <h3>🏆 最常搭的客運業者 (Top 5)</h3>
+          <div id="topOperators"></div>
+      </div>
+
+      <div class="stat-section">
+          <h3>🛣️ 最常搭的路線 (Top 5)</h3>
+          <div id="topRoutes"></div>
+      </div>
+
+      <div class="stat-section">
+          <h3>🚌 最常搭到的車號 (Top 5)</h3>
+          <div id="topBusNumbers"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// --- 1. Firebase 初始化設定 ---
+const firebaseConfig = {
+    // ⚠️ 警告：這些金鑰是公開的，請務必設定嚴格的 Firestore 安全規則，確保只有登入者能存取自己的資料！
+    apiKey: "AIzaSyAKTHlEzkOx8uZWOcfTr8YHZj6-bd74MeE",
+    authDomain: "jun-bus.firebaseapp.com",
+    projectId: "jun-bus",
+    storageBucket: "jun-bus.firebasestorage.app",
+    messagingSenderId: "685457601811",
+    appId: "1:685457601811:web:02f59887b6895879ac96e6",
+    measurementId: "G-HPTP7MMCDV"
+};
+
+// 使用 CDN 引入的語法進行初始化
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let editDocId = null; // 紀錄目前正在編輯的 Firestore 文件 ID
+let globalRecords = []; // 【新增】用來儲存所有紀錄以便統計
+
+// --- 2. 名稱翻譯表 ---
+
+// 客運業者名稱對應表 (Code -> 中文 Text)
+const OPERATOR_NAMES = {
+    "KeelungCity": "基隆市公車處", "KeelungBus": "基隆客運", "CapitalBus": "首都客運", "TaipeiBus": "臺北客運",
+    "ZhinanBus": "指南客運", "NewTaipeiBus": "新北客運", "SanChung": "三重客運", "KuoKuang": "國光客運",
+    "MetropolitanTransport": "大都會客運", "ZhongxingBus": "中興巴士", "Kuang-HuaBus": "光華巴士", "DaNan": "大南汽車",
+    "HsinBus": "欣欣客運", "SindianBus": "新店客運", "TamshuiBus": "淡水客運", "TaoyuanBus": "桃園客運",
+    "FuhobusInc": "福和客運", "RoyalBus": "皇家客運", "howtai": "豪泰客運", "southeastBus": "東南客運",
+    "CitiAirBus": "大有巴士", "ZhongliBus": "中壢客運", "HsinchuBus": "新竹客運", "YatungBus": "亞通客運",
+    "UnitedBus": "統聯客運", "ChampionTransportation": "金台客運", "UnitedBus1": "中台灣客運",
+    "YosemiteBus": "科技之星", "MiaoLi": "苗栗客運", "Jet-ChenBus": "捷乘客運", "Yi-JetTechIntegration": "亦捷科際",
+    "FengyuanBus": "豐原客運", "TaichungBus": "臺中客運", "GeyaBus": "巨業交通", "ChuanHang": "全航客運",
+    "MiaoLiBus": "苗栗客運", "HO-HSINBus": "和欣客運", "Chung-LuBus": "中鹿客運", "AllDayBus": "總達客運",
+    "freego": "建明客運", "RuiyiTransportation": "睿奕交通", "NANTOUBUS": "南投客運", "ChanghuaBus": "彰化客運",
+    "YuanLinBus": "員林客運", "taisibus": "台西客運", "goto307": "杉林溪客運",
+    "GreenTransit": "豐榮客運", "YunlinBus": "雲林客運", "SOLARbus": "日統客運", "ChiayiBus": "嘉義客運",
+    "ChiayiCountyBus": "嘉義縣公車處", "AlishanBus": "阿里山客運", "SinhuaBus": "興南客運", "SingingBus": "新營客運",
+    "TainanBus": "府城客運", "Han-ChengBus": "漢程客運", "KaohsiungBus": "高雄客運", "E-DaBus": "義大客運",
+    "SouthTaiwanBus": "南臺灣客運", "GreatCityLifeBus": "港都客運", "PingTungBus": "屏東客運", "KamalanBus": "葛瑪蘭客運",
+    "TarokoBus": "太魯閣客運", "hopelandbus": "華聯客運", "DiingDongBus": "鼎東客運", "ShingDongBus": "興東客運",
+    "PuyumaTransportation": "普悠瑪客運", "EasternTopTransportation": "東台灣客運", "TailianBus": "台聯客運",
+    "Kinmen": "金門縣公共車船管理處", "matsuebus": "連江縣公共車船管理處", "phpto": "澎湖縣公車處", 
+    "Other": "其他業者"
+};
+
+// 車型名稱對應表 (Code -> 中文 Text)
+const BUSTYPE_NAMES = {
+    "dieselbus": "柴油巴士",
+    "electricbus": "電動巴士",
+    "articulatedbus": "雙節巴士",
+    "minibus": "小型巴士",
+    "Freewaybusservice": "國道客運",
+    "Other": "其他"
+};
+
+// --- 3. 欄位互動邏輯 ---
+
+// 客運業者 → 車廠對應表 
+const operatorToManufacturer = {
+    "TaichungBus": ["霧峰站", "豐原站", "東海站", "高鐵站", "清水站", "沙鹿站", "大甲站", "國道站", "梧棲站"],
+    "UnitedBus": ["豐勢站", "清水站", "烏日站", "新福站", "霧峰站", "中科站", "干城站", "光復站", "大園站", "東勇站", "八德站", "平鎮站", "金馬站", "西港站", "竹山站", "斗六站", "北港站", "嘉義站", "永康站", "鼓山站", "羅東站", "花蓮站", "瑞豐站"],
+    "GeyaBus": ["大甲站", "沙鹿站", "嶺東站", "聯邦停車場"],
+    "ChuanHang": ["旱溪站", "聯邦停車場"],
+    "FengyuanBus": ["台中站", "豐原站", "東勢站", "大甲站", "谷關站", "卓蘭站", "梧棲站"],
+    "southeastBus": ["苑裡站", "大里站", "內湖站", "萬芳站", "高雄站"],
+    "MiaoLiBus": ["南苗站", "頭份站", "南庄站", "苑裡站", "新竹站", "苗栗站"],
+    "UnitedBus1": ["豐勢站", "清水站", "烏日站", "新福站", "霧峰站", "中科站", "干城站"],
+    "HO-HSINBus": ["台北站", "台中站", "台南站", "高雄站"],
+    "Chung-LuBus": ["大甲站", "北屯站", "嶺東站", "聯邦停車場"],
+    "AllDayBus": ["台中站", "水里站", "南投站"],
+    "KuoKuang": ["干城站", "五股站", "暖暖站", "金山站", "羅東站", "宜蘭站", "桃園站", "中壢站", "新竹站", "竹東站", "苗栗站", "彰化站", "南投站", "埔里站", "嘉義站", "台南站"],
+    "freego": ["苑裡站(東南客運)"],
+    "RuiyiTransportation": ["梧棲站", "大甲站", "東海大學"],
+    "NANTOUBUS": ["埔里站"],
+    "ChanghuaBus": ["彰化站", "員林站", "水尾站", "鹿港站", "南投站", "草屯站", "田中站"],
+    "YuanLinBus": ["溪湖站", "二林站", "員林站", "彰化站", "田中站", "台中站", "竹山站", "水里站", "鹿谷站"],
+    "CapitalBus": ["三重一站", "三重二站", "二重站", "新莊一站", "新莊二站", "新莊站(大都會客運)", "三峽一站(台北客運)", "內湖站", "東園站", "士林站", "南港站", "經貿新站(充電站)", "經貿站", "汐止一站", "汐止二站", "社子站", "安康站", "羅東站", "民生站(台北客運)", "板橋前站(台北客運)", "板橋站", "八斗子站", "基隆站", "花蓮站", "五結站"],
+    "KamalanBus": ["大園站", "羅東站"],
+    "YatungBus": ["新店站", "新竹站"],
+    "KeelungBus": ["基隆站", "金山站", "瑞芳站", "土城站"],
+    "NewTaipeiBus": ["五堵站", "北士科站(光華巴士)"],
+    "SanChung": ["蘆洲一站", "蘆洲二站", "新莊站", "中港站", "土城站", "八里站", "五股站", "五股二站", "樹林站", "迴龍站", "淡海站", "公西站", "林口站", "南港站"],
+    "SindianBus": ["新店站", "錦繡站"],
+    "TaoyuanBus": ["中壢公車站", "觀音站", "大溪站", "中壢站", "竹圍站", "龍潭站", "大園站", "三峽站", "桃園公車站", "中壢站"],
+    "HsinchuBus": ["新竹站"],
+    "SinhuaBus": ["安平工業區", "臺南火車站", "佳里站", "新化站", "麻豆站", "玉井站", "楠西站"],
+    "CitiAirBus": ["舊莊站", "新莊站", "中華站"],
+    "howtai": ["五股站", "香山站"],
+    "TaipeiBus": ["南雅站", "歡仔園站", "板橋後站", "五福站", "四海站", "中和站", "樹林站", "新店站", "三峽一站", "三峽二站", "木柵站", "中華站", "林口站", "蘆洲站", "民生站", "板橋前站", "江子翠站", "士林站(首都客運)", "象頭埔停車場", "瑞芳站", "蘇澳站(大都會客運)", "花蓮站"],
+    "HsinBus": ["中央站", "中興站", "富德站", "木柵二站(充電站)", "木柵站(充電站)", "東湖站", "深坑站", "華江站", "景新站", "景德站", "興隆停車場"],
+    "DaNan": ["秀山站", "土城站", "關渡站", "內湖站", "中央站(欣欣客運)", "景新站(欣欣客運)", "三鶯轉運站"],
+    "NewTaipeiBus": ["五堵站", "北士科站(光華巴士)"],
+    "ZhongxingBus": ["中和站", "汐止站", "天母站", "故宮站", "泰山站", "三重站", "三芝站(淡水客運)", "北士科充電站(光華巴士)", "北士科站(光華巴士)", "中壢站"],
+    "TamshuiBus": ["淡水站", "三芝站", "八里站", "新市站"],
+    "ZhinanBus": ["新光站", "深坑站", "安和站", "淡海站", "樹林站", "錦繡站", "淡大站", "五股站", "泰山站", "故宮站(中興巴士)", "麟光站", "三重站(中興巴士)", "新市站(淡水客運)", "八里站(淡水客運)", "桃園站", "北士科充電站(光華巴士)"],
+    "MetropolitanTransport": ["內湖站", "萬芳站", "陽明山站", "東園站", "蘆洲站", "松德站", "榮總站", "吳興街站", "中和站", "四海站(臺北客運)", "凌雲站", "東湖站", "松職站", "麟光站", "舊莊站", "士林站", "建北站", "新莊站", "蘇澳站", "基隆站", "林口站(台北客運)", "新莊二站(首都客運)", "象頭埔停車場(台北客運)", "新店站(台北客運)", "民生站"],
+    "FuhobusInc": ["大武崙站"],
+    "Kuang-HuaBus": ["東湖站", "北峰站", "北士科站", "天東站", "天西站", "海專站", "故宮站", "麟光站", "中和站", "基隆站(基隆客運)"],
+    "RoyalBus": ["加投站"],
+    "TaoyuanBus": ["中壢公車站", "觀音站", "大溪站", "中壢站", "竹圍站", "龍潭站", "大園站", "三峽站", "桃園公車站", "中壢站"],
+    "ZhongliBus": ["中壢站", "桃園站"],
+    "YatungBus": ["新店站", "新竹站"],
+    "KamalanBus": ["大園站", "羅東站"],
+    "YosemiteBus": ["新竹站"],
+    "taisibus": ["斗六站", "虎尾西站", "北港站", "西螺站", "斗南站", "竹山站"],
+    "NANTOUBU": ["台中干城站", "高鐵台中站", "草屯服務處", "埔里轉運站", "日月潭站"],
+    "GreenTransit": ["中興站"],
+    "AlishanBus": ["太保站"],
+    "YunlinBus": ["雲科大站"],
+    "SOLARbus": ["斗六站", "西螺站", "麥寮站"],
+    "ChiayiBus": ["總公司", "中山總站", "北港站", "朴子站"],
+    "TainanBus": ["頂東站", "茄萣站", "仁德轉運站（胸腔病院旁)", "塭南里", "下鯤鯓站"],
+    "SinhuaBus": ["安平工業區", "臺南火車站", "佳里站", "新化站", "麻豆站", "玉井站", "楠西站"],
+    "SingingBus": ["總公司", "新營站", "白河站"],
+    "Han-ChengBus": ["金獅湖站", "新營站"],
+    "GreatCityLifeBus": ["加昌站", "小港站", "左營南站", "前鎮站", "建軍站"],
+    "KaohsiungBus": ["總公司", "林園站", "小琉球站", "鳳山站", "大順站", "建國站", "楠梓站", "岡山站", "茄萣站", "旗山轉運站", "旗山北站", "美濃站", "六龜站", "甲仙站", "台南站", "水門轉運站"],
+    "SouthTaiwanBus": ["高雄站"],
+    "E-DaBus": ["義大站"],
+    "PingTungBus": ["屏東站", "屏科大", "里港站", "高樹站", "美濃站", "水門站", "鹽埔站", "潮州站", "東港站", "枋寮站", "恆春站", "共營中心"],
+    "TarokoBus": ["東華大學站",],
+    "PuyumaTransportation": ["更生路車廠"],
+    "phpto": ["馬公總站"],
+    "matsuebus": ["北竿", "南竿", "東莒", "西莒", "東引"],
+    "Kinmen": ["金城站(金城停車場)", "山外站(建華停車場)", "沙美站", "烈嶼站"]
+    
+};
+
+// 監聽業者選擇 (使用獨立函式，避免重複綁定)
+document.getElementById("operator").addEventListener("change", function updateManufacturerOptions() {
+  const selectedOperator = this.value;
+  const manufacturerSelect = document.getElementById("manufacturer");
+
+  manufacturerSelect.innerHTML = "";
+
+  if (operatorToManufacturer[selectedOperator]) {
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = "--- 請選擇車廠 ---";
+    defaultOption.disabled = true;
+    defaultOption.selected = true;
+    manufacturerSelect.appendChild(defaultOption);
+
+    operatorToManufacturer[selectedOperator].forEach(m => {
+      const option = document.createElement("option");
+      option.value = m;
+      option.textContent = m;
+      manufacturerSelect.appendChild(option);
+    });
+  } else {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "無對應車廠資料";
+    manufacturerSelect.appendChild(option);
+  }
+});
+
+// 車號輸入時自動轉大寫 
+document.getElementById("busNumber").addEventListener("input", function() {
+  this.value = this.value.toUpperCase();
+});
+
+
+// --- 4. 認證相關函式 ---
+
+function updateAuthUI(user) {
+  const loginForm = document.getElementById("loginForm");
+  const userInfo = document.getElementById("userInfo");
+  const userEmail = document.getElementById("userEmail");
+
+  if (user) {
+    userEmail.textContent = user.email;
+    loginForm.style.display = "none";
+    userInfo.style.display = "block";
+    loadRecords(user.uid); 
+  } else {
+    loginForm.style.display = "block";
+    userInfo.style.display = "none";
+    document.getElementById("recordTable").querySelector("tbody").innerHTML = "";
+    globalRecords = []; // 登出清空
+    editDocId = null;
+  }
+}
+
+async function signup() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  if (password.length < 6) {
+    alert("密碼長度需至少 6 位。");
+    return;
+  }
+  try {
+    await auth.createUserWithEmailAndPassword(email, password);
+    alert("註冊成功！已自動登入。");
+  } catch (error) {
+    alert("註冊失敗：" + error.message);
+  }
+}
+
+async function login() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    alert("登入成功！");
+  } catch (error) {
+    alert("登入失敗：" + error.message);
+  }
+}
+
+function logout() {
+  auth.signOut();
+  alert("已登出。");
+  document.getElementById("surveyForm").reset();
+  updateTimestamp();
+}
+
+// 監聽登入狀態變化，決定載入哪些資料
+auth.onAuthStateChanged(updateAuthUI);
+
+// --- 5. 欄位輔助函式 ---
+
+// 自動填入時間戳記 & 星期
+function updateTimestamp() {
+    const now = new Date();
+    document.getElementById("timestamp").value = now.toLocaleString(); 
+    
+    const weekdays = ["日","一","二","三","四","五","六"];
+    document.getElementById("weekday").value = "星期" + weekdays[now.getDay()];
+}
+
+// 顯示在表格 + 點擊載入表單
+function addRow(record, docId) {
+    const tbody = document.getElementById("recordTable").querySelector("tbody");
+    const formattedTimestamp = record.timestamp ? record.timestamp.toDate().toLocaleString() : 'N/A';
+    
+    const row = tbody.insertRow(-1); 
+
+    const data = [
+      formattedTimestamp,
+      record.weekday,
+      OPERATOR_NAMES[record.operator] || record.operator,
+      record.manufacturer,
+      record.routeCode,
+      record.busNumber,
+      BUSTYPE_NAMES[record.busType] || record.busType,
+      record.note
+    ];
+
+    data.forEach(val => {
+        const cell = row.insertCell();
+        cell.textContent = val;
+    });
+
+    // 點擊列 → 載入到表單
+    row.addEventListener("click", () => loadToForm(docId));
+}
+
+function loadToForm(docId) {
+    db.collection("busRecords").doc(docId).get().then(doc => {
+      if (doc.exists) {
+        const record = doc.data();
+        
+        document.getElementById("timestamp").value = record.timestamp.toDate().toLocaleString();
+        document.getElementById("weekday").value = record.weekday;
+        
+        const operatorSelect = document.getElementById("operator");
+        operatorSelect.value = record.operator;
+        operatorSelect.dispatchEvent(new Event('change'));
+
+        setTimeout(() => { 
+           document.getElementById("manufacturer").value = record.manufacturer;
+        }, 50);
+
+        document.getElementById("routeCode").value = record.routeCode;
+        document.getElementById("busNumber").value = record.busNumber;
+        document.getElementById("busType").value = record.busType;
+        document.getElementById("note").value = record.note;
+
+        editDocId = docId; 
+      }
+    });
+}
+
+// --- 6. CRUD 函式 & 統計 ---
+
+async function saveData() {
+    const user = auth.currentUser;
+    if (!user) {
+        alert("請先登入才能儲存紀錄！");
+        return;
+    }
+
+    const operator = document.getElementById("operator").value;
+    const manufacturer = document.getElementById("manufacturer").value;
+    const busType = document.getElementById("busType").value;
+    const busNumber = document.getElementById("busNumber").value;
+
+    if (!operator || operator === "") { alert("請選擇客運業者！"); return; }
+    if (!manufacturer || manufacturer === "") { alert("請選擇車廠！"); return; }
+    if (!busType || busType === "") { alert("請選擇車型！"); return; }
+    if (busNumber.trim() === "") { alert("請填寫車號！"); return; }
+
+    const record = {
+        userId: user.uid,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(), 
+        weekday: document.getElementById("weekday").value,
+        operator: operator,
+        manufacturer: manufacturer,
+        routeCode: document.getElementById("routeCode").value,
+        busNumber: busNumber.toUpperCase(),
+        busType: busType,
+        note: document.getElementById("note").value
+    };
+
+    try {
+        await db.collection("busRecords").add(record);
+        alert("紀錄儲存成功！");
+        document.getElementById("surveyForm").reset();
+        updateTimestamp();
+
+    } catch (e) {
+        console.error("寫入 Firestore 錯誤: ", e);
+        alert("儲存失敗。");
+    }
+}
+
+async function deleteRecord() {
+    if (editDocId === null) {
+        alert("請先選擇要刪除的紀錄！");
+        return;
+    }
+    if (!confirm("確定要刪除這筆紀錄嗎？")) return;
+
+    try {
+        await db.collection("busRecords").doc(editDocId).delete();
+        alert("紀錄刪除成功！");
+        document.getElementById("surveyForm").reset();
+        updateTimestamp();
+        editDocId = null;
+    } catch (e) {
+        console.error("刪除 Firestore 錯誤: ", e);
+        alert("刪除失敗。");
+    }
+}
+
+async function deleteAllRecords() {
+    const user = auth.currentUser;
+    if (!user) {
+        alert("請先登入才能執行刪除操作！");
+        return;
+    }
+
+    if (!confirm("警告！您確定要刪除所有搭乘紀錄嗎？此操作不可逆！")) return;
+
+    try {
+        const snapshot = await db.collection("busRecords")
+            .where("userId", "==", user.uid)
+            .get();
+
+        if (snapshot.size === 0) {
+            alert("您的帳戶中沒有紀錄需要刪除。");
+            return;
+        }
+
+        const batch = db.batch();
+        let deleteCount = 0;
+        
+        snapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+            deleteCount++;
+        });
+
+        await batch.commit();
+
+        alert(`成功刪除 ${deleteCount} 筆紀錄！`);
+        document.getElementById("surveyForm").reset();
+        updateTimestamp();
+        editDocId = null;
+
+    } catch (e) {
+        console.error("批量刪除錯誤: ", e);
+        alert("刪除失敗。請檢查您的 Firestore 權限。");
+    }
+}
+
+
+async function saveEdit() {
+    if (editDocId === null) {
+        alert("請先選擇要修改的紀錄！");
+        return;
+    }
+    
+    const operator = document.getElementById("operator").value;
+    const manufacturer = document.getElementById("manufacturer").value;
+    const busType = document.getElementById("busType").value;
+    const busNumber = document.getElementById("busNumber").value;
+    
+    if (!operator || !manufacturer || !busType || busNumber.trim() === "") {
+        alert("客運業者、車廠、車型和車號為必填欄位！");
+        return; 
+    }
+
+    const updatedRecord = {
+        weekday: document.getElementById("weekday").value,
+        operator: operator,
+        manufacturer: manufacturer,
+        routeCode: document.getElementById("routeCode").value,
+        busNumber: busNumber.toUpperCase(), 
+        busType: busType,
+        note: document.getElementById("note").value
+    };
+
+    try {
+        await db.collection("busRecords").doc(editDocId).update(updatedRecord);
+        alert("紀錄修改成功！");
+        editDocId = null;
+    } catch (e) {
+        console.error("修改 Firestore 錯誤: ", e);
+        alert("修改失敗。");
+    }
+}
+
+// 載入紀錄 + 更新全域變數
+function loadRecords(userId) {
+    const tbody = document.getElementById("recordTable").querySelector("tbody");
+
+    db.collection("busRecords")
+        .where("userId", "==", userId)
+        .orderBy("timestamp", "desc") 
+        .onSnapshot((snapshot) => {
+            tbody.innerHTML = "";
+            globalRecords = []; // 清空舊資料
+            
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                globalRecords.push(data); // 存入全域變數供統計使用
+                addRow(data, doc.id);
+            });
+        }, error => {
+            console.error("Firestore 監聽錯誤: ", error);
+            alert("資料載入失敗。");
+        });
+}
+
+function exportCSV() {
+    const user = auth.currentUser;
+    if (!user) {
+        alert("請先登入才能匯出紀錄！");
+        return;
+    }
+
+    if (globalRecords.length === 0) {
+        alert("沒有紀錄可供匯出。");
+        return;
+    }
+
+    const records = globalRecords.map(data => {
+        return {
+            "時間戳記": data.timestamp ? data.timestamp.toDate().toLocaleString() : 'N/A',
+            "星期": data.weekday,
+            "客運業者": OPERATOR_NAMES[data.operator] || data.operator,
+            "車廠": data.manufacturer,
+            "路線碼": data.routeCode,
+            "車號": data.busNumber,
+            "車型": BUSTYPE_NAMES[data.busType] || data.busType,
+            "備註": data.note
+        };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(records);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "搭乘紀錄");
+    
+    const excelBuffer = XLSX.write(workbook, { bookType: 'csv', type: 'array' });
+    const data = new Blob([excelBuffer], {type: 'text/csv;charset=utf-8;'});
+    
+    saveAs(data, `BusRecords_${new Date().toISOString().slice(0, 10)}.csv`);
+    alert("CSV 匯出成功！");
+}
+
+// --- 7. 統計功能與模態視窗 ---
+
+function showStats() {
+    if (globalRecords.length === 0) {
+        alert("目前沒有資料可供統計！");
+        return;
+    }
+
+    const modal = document.getElementById("statsModal");
+    modal.style.display = "block";
+
+    // 1. 基礎數字
+    document.getElementById("totalRides").textContent = globalRecords.length;
+    const uniqueBuses = new Set(globalRecords.map(r => r.busNumber)).size;
+    document.getElementById("uniqueBuses").textContent = uniqueBuses;
+
+    // 2. 計算統計數據
+    const opCounts = {};
+    const routeCounts = {};
+    const busCounts = {};
+
+    globalRecords.forEach(r => {
+        // 客運
+        const opName = OPERATOR_NAMES[r.operator] || r.operator;
+        opCounts[opName] = (opCounts[opName] || 0) + 1;
+
+        // 路線 (處理空值)
+        const rt = r.routeCode ? r.routeCode : "(未填寫)";
+        routeCounts[rt] = (routeCounts[rt] || 0) + 1;
+
+        // 車號
+        const bn = r.busNumber;
+        busCounts[bn] = (busCounts[bn] || 0) + 1;
+    });
+
+    renderChart("topOperators", opCounts, 5);
+    renderChart("topRoutes", routeCounts, 5);
+    renderChart("topBusNumbers", busCounts, 5);
+}
+
+function closeStats() {
+    document.getElementById("statsModal").style.display = "none";
+}
+
+// 點擊視窗外部關閉
+window.onclick = function(event) {
+    const modal = document.getElementById("statsModal");
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+}
+
+// 產生長條圖 HTML
+function renderChart(elementId, dataObj, limit) {
+    const container = document.getElementById(elementId);
+    container.innerHTML = "";
+
+    // 轉為陣列並排序
+    const sorted = Object.entries(dataObj)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit);
+
+    if (sorted.length === 0) return;
+
+    const maxVal = sorted[0][1]; // 用最大值來計算 bar 的比例
+
+    sorted.forEach(([label, value]) => {
+        const percentage = (value / maxVal) * 100;
+        
+        const row = document.createElement("div");
+        row.className = "stat-row";
+        
+        row.innerHTML = `
+            <div class="stat-label" title="${label}">${label}</div>
+            <div class="stat-bar-container">
+                <div class="stat-bar" style="width: ${percentage}%;"></div>
+                <div class="stat-value">${value}次</div>
+            </div>
+        `;
+        container.appendChild(row);
+    });
+}
+
+
+// --- 8. Excel 匯入功能 ---
+
+function createReverseMap(mapObj) {
+    return Object.fromEntries(Object.entries(mapObj).map(([key, value]) => [value, key]));
+}
+
+const REVERSE_OPERATOR_NAMES = createReverseMap(OPERATOR_NAMES);
+const REVERSE_BUSTYPE_NAMES = createReverseMap(BUSTYPE_NAMES);
+
+function parseTwDate(dateStr) {
+    if (typeof dateStr === 'number') {
+        return new Date(Math.round((dateStr - 25569) * 86400 * 1000));
+    }
+    if (!dateStr || typeof dateStr !== 'string') return new Date();
+
+    let cleanStr = dateStr.trim();
+    if (cleanStr.includes("上午") || cleanStr.includes("下午")) {
+        const isPM = cleanStr.includes("下午");
+        let temp = cleanStr.replace("上午", "").replace("下午", "").trim();
+        let parts = temp.split(/\s+/);
+        if (parts.length >= 2) {
+             let datePart = parts[0];
+             let timePart = parts[1];
+             let [h, m, s] = timePart.split(':').map(Number);
+             if (isPM && h < 12) h += 12;
+             if (!isPM && h === 12) h = 0;
+             let d = new Date(`${datePart} ${h}:${m}:${s}`);
+             if (!isNaN(d.getTime())) return d;
+        }
+    }
+    let d = new Date(dateStr);
+    return isNaN(d.getTime()) ? new Date() : d;
+}
+
+function handleFileSelect(input) {
+    const user = auth.currentUser;
+    if (!user) {
+        alert("請先登入才能匯入資料！");
+        input.value = ""; 
+        return;
+    }
+
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, {raw: false});
+            
+            if (jsonData.length === 0) {
+                alert("檔案內容為空！");
+                return;
+            }
+
+            if (!confirm(`偵測到 ${jsonData.length} 筆資料，確定要匯入嗎？`)) {
+                input.value = "";
+                return;
+            }
+
+            processImportData(jsonData, user.uid);
+
+        } catch (error) {
+            console.error("讀取檔案錯誤:", error);
+            alert("讀取 Excel 失敗，請確認檔案格式正確。");
+        }
+        input.value = ""; 
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+async function processImportData(data, userId) {
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const row of data) {
+        try {
+            let operatorCode = REVERSE_OPERATOR_NAMES[row['客運業者']];
+            if (!operatorCode) operatorCode = "Other";
+            
+            let busTypeCode = REVERSE_BUSTYPE_NAMES[row['車型']];
+            if (!busTypeCode) busTypeCode = "Other";
+
+            let timestampVal = parseTwDate(row['時間戳記']);
+            const weekMap = ["日", "一", "二", "三", "四", "五", "六"];
+            const calculatedWeekday = "星期" + weekMap[timestampVal.getDay()];
+
+            const newRecord = {
+                userId: userId,
+                timestamp: firebase.firestore.Timestamp.fromDate(timestampVal),
+                weekday: calculatedWeekday, 
+                operator: operatorCode,
+                manufacturer: row['車廠'] || "",
+                routeCode: row['路線碼'] ? String(row['路線碼']) : "",
+                busNumber: row['車號'] ? String(row['車號']).toUpperCase() : "UNKNOWN",
+                busType: busTypeCode,
+                note: row['備註'] || "Excel 匯入"
+            };
+
+            await db.collection("busRecords").add(newRecord);
+            successCount++;
+        } catch (err) {
+            console.error("匯入單筆失敗:", err, row);
+            failCount++;
+        }
+    }
+    alert(`匯入完成！\n成功：${successCount} 筆\n失敗：${failCount} 筆`);
+}
+
+updateTimestamp();
+</script>
+</body>
+</html>
