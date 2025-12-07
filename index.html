@@ -57,13 +57,30 @@
       background-color: #1e40af;
     }
 
-    /* 針對「全部刪除」按鈕的特殊顏色 */
+    /* 針對「全部刪除」按鈕的特殊顏色 (原有的紅色) */
     .delete-all-btn {
         background-color: #dc2626; /* 紅色 */
     }
     .delete-all-btn:hover {
         background-color: #b91c1c;
     }
+    
+    /* 【新增】針對「儲存紀錄」按鈕的特殊顏色 (橘色/黃昏色) */
+    .save-data-btn {
+        background-color: #f97316; /* 橘色 */
+    }
+    .save-data-btn:hover {
+        background-color: #ea580c; /* 深橘色 */
+    }
+
+    /* 【新增】針對「刪除紀錄」按鈕的特殊顏色 (紅色) */
+    .delete-record-btn {
+        background-color: #dc2626; /* 紅色 */
+    }
+    .delete-record-btn:hover {
+        background-color: #b91c1c; 
+    }
+
 
     /* 針對「統計」按鈕的特殊顏色 (紫色) */
     .stats-btn {
@@ -415,8 +432,8 @@
     </div>
 	<div class="form-group">
   <label for="manufacturer">車廠</label>
-  <select id="manufacturer" name="manufacturer" required>
-    <option value="" disabled selected>--- 請先選擇客運業者 ---</option>
+  <select id="manufacturer" name="manufacturer">
+    <option value="" selected>--- 請先選擇客運業者 ---</option>
  </select>
 </div>
 
@@ -446,15 +463,16 @@
       <textarea id="note"></textarea>
     </div>
 
-    <button type="button" onclick="saveData()">儲存紀錄</button>
+    <button type="button" onclick="saveData()" class="save-data-btn">🛎️ 儲存紀錄 💾</button>
     <button type="button" onclick="saveEdit()">儲存修改</button>
-    <button type="button" onclick="deleteRecord()">刪除紀錄</button>
+    <button type="button" onclick="deleteRecord()" class="delete-record-btn">刪除紀錄</button>
     <input type="file" id="importFile" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleFileSelect(this)">
     <button type="button" onclick="document.getElementById('importFile').click()" style="background-color: #10b981;">匯入資料</button>
     <button type="button" onclick="exportCSV()">匯出資料</button>
     <button type="button" onclick="showStats()" class="stats-btn">📊 統計資料</button>
     <button type="button" onclick="showBusStats()" class="bus-stats-btn">🚌 車號統計列表</button>
     <button type="button" onclick="deleteAllRecords()" class="delete-all-btn">全部刪除</button>
+    
   </form>
 
   <h2>紀錄清單</h2>
@@ -664,9 +682,8 @@ document.getElementById("operator").addEventListener("change", function updateMa
   if (operatorToManufacturer[selectedOperator]) {
     const defaultOption = document.createElement("option");
     defaultOption.value = "";
-    defaultOption.textContent = "--- 請選擇車廠 ---";
-    defaultOption.disabled = true;
-    defaultOption.selected = true;
+    defaultOption.textContent = "--- 請選擇車廠 (非必填) ---";
+    defaultOption.selected = true; // 即使不選也預設是這個
     manufacturerSelect.appendChild(defaultOption);
 
     operatorToManufacturer[selectedOperator].forEach(m => {
@@ -678,7 +695,7 @@ document.getElementById("operator").addEventListener("change", function updateMa
   } else {
     const option = document.createElement("option");
     option.value = "";
-    option.textContent = "無對應車廠資料";
+    option.textContent = "無對應車廠資料 (非必填)";
     manufacturerSelect.appendChild(option);
   }
 });
@@ -797,6 +814,7 @@ function loadToForm(docId) {
         operatorSelect.dispatchEvent(new Event('change'));
 
         setTimeout(() => { 
+           // 這裡不需要判斷 manufacturer.value 是否為空，直接載入即可
            document.getElementById("manufacturer").value = record.manufacturer;
         }, 50);
 
@@ -812,6 +830,7 @@ function loadToForm(docId) {
 
 // --- 6. CRUD 函式 & 統計 ---
 
+// 儲存紀錄 (C - Create)
 async function saveData() {
     const user = auth.currentUser;
     if (!user) {
@@ -819,22 +838,33 @@ async function saveData() {
         return;
     }
 
+    // --- 【修改點 1: 移除車廠必填檢查】 ---
     const operator = document.getElementById("operator").value;
-    const manufacturer = document.getElementById("manufacturer").value;
+    const manufacturer = document.getElementById("manufacturer").value; // 仍需取得值，但不再強制檢查
     const busType = document.getElementById("busType").value;
     const busNumber = document.getElementById("busNumber").value;
 
-    if (!operator || operator === "") { alert("請選擇客運業者！"); return; }
-    if (!manufacturer || manufacturer === "") { alert("請選擇車廠！"); return; }
-    if (!busType || busType === "") { alert("請選擇車型！"); return; }
-    if (busNumber.trim() === "") { alert("請填寫車號！"); return; }
+    if (!operator || operator === "") {
+        alert("請選擇客運業者！");
+        return; 
+    }
+    // 移除： if (!manufacturer || manufacturer === "") { alert("請選擇車廠！"); return; }
+    if (!busType || busType === "") {
+        alert("請選擇車型！");
+        return; 
+    }
+    if (busNumber.trim() === "") {
+        alert("請填寫車號！");
+        return; 
+    }
+    // --------------------------------
 
     const record = {
         userId: user.uid,
         timestamp: firebase.firestore.FieldValue.serverTimestamp(), 
         weekday: document.getElementById("weekday").value,
         operator: operator,
-        manufacturer: manufacturer,
+        manufacturer: manufacturer, // 儲存 (可能為空字串 "")
         routeCode: document.getElementById("routeCode").value,
         busNumber: busNumber.toUpperCase(),
         busType: busType,
@@ -853,6 +883,7 @@ async function saveData() {
     }
 }
 
+// 刪除紀錄 (D - Delete)
 async function deleteRecord() {
     if (editDocId === null) {
         alert("請先選擇要刪除的紀錄！");
@@ -913,26 +944,30 @@ async function deleteAllRecords() {
 }
 
 
+// 儲存修改 (U - Update)
 async function saveEdit() {
     if (editDocId === null) {
         alert("請先選擇要修改的紀錄！");
         return;
     }
     
+    // --- 【修改點 2: 移除車廠必填檢查，並更新警示文字】 ---
     const operator = document.getElementById("operator").value;
-    const manufacturer = document.getElementById("manufacturer").value;
+    const manufacturer = document.getElementById("manufacturer").value; // 仍需取得值，但不再強制檢查
     const busType = document.getElementById("busType").value;
     const busNumber = document.getElementById("busNumber").value;
     
-    if (!operator || !manufacturer || !busType || busNumber.trim() === "") {
-        alert("客運業者、車廠、車型和車號為必填欄位！");
+    // 僅檢查 業者、車型和車號
+    if (!operator || !busType || busNumber.trim() === "") {
+        alert("客運業者、車型和車號為必填欄位，請確認皆已選擇或填寫！");
         return; 
     }
+    // --------------------------------
 
     const updatedRecord = {
         weekday: document.getElementById("weekday").value,
         operator: operator,
-        manufacturer: manufacturer,
+        manufacturer: manufacturer, // 儲存 (可能為空字串 "")
         routeCode: document.getElementById("routeCode").value,
         busNumber: busNumber.toUpperCase(), 
         busType: busType,
@@ -1244,20 +1279,12 @@ async function processImportData(data, userId) {
             const weekMap = ["日", "一", "二", "三", "四", "五", "六"];
             const calculatedWeekday = "星期" + weekMap[timestampVal.getDay()];
 
-            // 【修改重點】確保車廠資料如果是空的，就存為空字串，不要變成 undefined
-            let manuf = row['車廠'];
-            if (!manuf || String(manuf).trim() === "") {
-                manuf = "";
-            } else {
-                manuf = String(manuf).trim();
-            }
-
             const newRecord = {
                 userId: userId,
                 timestamp: firebase.firestore.Timestamp.fromDate(timestampVal),
                 weekday: calculatedWeekday, 
                 operator: operatorCode,
-                manufacturer: manuf, // 使用處理過的變數
+                manufacturer: row['車廠'] || "",
                 routeCode: row['路線碼'] ? String(row['路線碼']) : "",
                 busNumber: row['車號'] ? String(row['車號']).toUpperCase() : "UNKNOWN",
                 busType: busTypeCode,
