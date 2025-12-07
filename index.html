@@ -449,13 +449,12 @@
     <button type="button" onclick="saveData()">儲存紀錄</button>
     <button type="button" onclick="saveEdit()">儲存修改</button>
     <button type="button" onclick="deleteRecord()">刪除紀錄</button>
-    <button type="button" onclick="exportCSV()">匯出 CSV</button>
+    <input type="file" id="importFile" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleFileSelect(this)">
+    <button type="button" onclick="document.getElementById('importFile').click()" style="background-color: #10b981;">匯入資料</button>
+    <button type="button" onclick="exportCSV()">匯出資料</button>
     <button type="button" onclick="showStats()" class="stats-btn">📊 統計資料</button>
     <button type="button" onclick="showBusStats()" class="bus-stats-btn">🚌 車號統計列表</button>
     <button type="button" onclick="deleteAllRecords()" class="delete-all-btn">全部刪除</button>
-    
-    <input type="file" id="importFile" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleFileSelect(this)">
-    <button type="button" onclick="document.getElementById('importFile').click()" style="background-color: #10b981;">匯入 Excel</button>
   </form>
 
   <h2>紀錄清單</h2>
@@ -1245,12 +1244,20 @@ async function processImportData(data, userId) {
             const weekMap = ["日", "一", "二", "三", "四", "五", "六"];
             const calculatedWeekday = "星期" + weekMap[timestampVal.getDay()];
 
+            // 【修改重點】確保車廠資料如果是空的，就存為空字串，不要變成 undefined
+            let manuf = row['車廠'];
+            if (!manuf || String(manuf).trim() === "") {
+                manuf = "";
+            } else {
+                manuf = String(manuf).trim();
+            }
+
             const newRecord = {
                 userId: userId,
                 timestamp: firebase.firestore.Timestamp.fromDate(timestampVal),
                 weekday: calculatedWeekday, 
                 operator: operatorCode,
-                manufacturer: row['車廠'] || "",
+                manufacturer: manuf, // 使用處理過的變數
                 routeCode: row['路線碼'] ? String(row['路線碼']) : "",
                 busNumber: row['車號'] ? String(row['車號']).toUpperCase() : "UNKNOWN",
                 busType: busTypeCode,
