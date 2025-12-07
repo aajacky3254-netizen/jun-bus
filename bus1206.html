@@ -1,3 +1,4 @@
+
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
@@ -61,17 +62,24 @@
     .delete-all-btn {
         background-color: #dc2626; /* 紅色 */
     }
-
     .delete-all-btn:hover {
         background-color: #b91c1c;
     }
 
-    /* 針對「統計」按鈕的特殊顏色 */
+    /* 針對「統計」按鈕的特殊顏色 (紫色) */
     .stats-btn {
-        background-color: #7c3aed; /* 紫色 */
+        background-color: #7c3aed; 
     }
     .stats-btn:hover {
         background-color: #6d28d9;
+    }
+
+    /* 針對「車號統計」按鈕的特殊顏色 (綠色) */
+    .bus-stats-btn {
+        background-color: #059669; 
+    }
+    .bus-stats-btn:hover {
+        background-color: #047857;
     }
 
     table {
@@ -112,6 +120,11 @@
         max-width: 600px;
         border-radius: 10px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    /* 讓車號列表的視窗稍微寬一點，方便閱讀表格 */
+    .modal-content.wide-modal {
+        max-width: 800px;
     }
 
     .close-btn {
@@ -191,6 +204,12 @@
         font-size: 24px;
         font-weight: bold;
         color: #2563eb;
+    }
+    
+    /* 車號列表專用表格樣式 */
+    .bus-list-table th {
+        background-color: #e5e7eb;
+        color: #374151;
     }
   </style>
 </head>
@@ -433,6 +452,7 @@
     <button type="button" onclick="deleteRecord()">刪除紀錄</button>
     <button type="button" onclick="exportCSV()">匯出 CSV</button>
     <button type="button" onclick="showStats()" class="stats-btn">📊 統計資料</button>
+    <button type="button" onclick="showBusStats()" class="bus-stats-btn">🚌 車號統計列表</button>
     <button type="button" onclick="deleteAllRecords()" class="delete-all-btn">全部刪除</button>
     
     <input type="file" id="importFile" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleFileSelect(this)">
@@ -484,6 +504,28 @@
     </div>
   </div>
 
+  <div id="busStatsModal" class="modal">
+    <div class="modal-content wide-modal">
+      <span class="close-btn" onclick="closeBusStats()">&times;</span>
+      <h2 style="text-align: center; color: #059669;">🚌 車號統計列表</h2>
+      <p style="text-align: center; margin-bottom: 20px; color: #666;">依照車號排序 (A-Z)</p>
+      
+      <div style="overflow-x: auto;">
+          <table class="bus-list-table">
+            <thead>
+                <tr>
+                    <th>車號</th>
+                    <th>次數</th>
+                    <th>所屬客運業者</th>
+                </tr>
+            </thead>
+            <tbody id="busListBody">
+                </tbody>
+          </table>
+      </div>
+    </div>
+  </div>
+
 <script>
 // --- 1. Firebase 初始化設定 ---
 const firebaseConfig = {
@@ -503,7 +545,7 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 let editDocId = null; // 紀錄目前正在編輯的 Firestore 文件 ID
-let globalRecords = []; // 【新增】用來儲存所有紀錄以便統計
+let globalRecords = []; // 用來儲存所有紀錄以便統計
 
 // --- 2. 名稱翻譯表 ---
 
@@ -1011,11 +1053,73 @@ function closeStats() {
     document.getElementById("statsModal").style.display = "none";
 }
 
-// 點擊視窗外部關閉
+// 【新增】車號統計列表邏輯
+function showBusStats() {
+    if (globalRecords.length === 0) {
+        alert("目前沒有資料可供列表！");
+        return;
+    }
+
+    const modal = document.getElementById("busStatsModal");
+    modal.style.display = "block";
+    
+    const tbody = document.getElementById("busListBody");
+    tbody.innerHTML = ""; // 清空舊資料
+
+    // 1. 整理資料：以車號為 Key
+    const busMap = {};
+    
+    globalRecords.forEach(r => {
+        const busNum = r.busNumber || "UNKNOWN";
+        if (!busMap[busNum]) {
+            busMap[busNum] = {
+                count: 0,
+                // 取第一筆找到的業者資料作為代表 (通常一台車只會屬於一間客運)
+                operator: OPERATOR_NAMES[r.operator] || r.operator
+            };
+        }
+        busMap[busNum].count++;
+    });
+
+    // 2. 轉換為陣列並排序 (依照車號 A-Z)
+    const sortedBusList = Object.entries(busMap)
+        .map(([num, data]) => ({
+            num: num,
+            count: data.count,
+            operator: data.operator
+        }))
+        .sort((a, b) => a.num.localeCompare(b.num, 'en', { numeric: true }));
+
+    // 3. 產生表格 HTML
+    sortedBusList.forEach(item => {
+        const row = tbody.insertRow();
+        
+        const cellNum = row.insertCell();
+        cellNum.textContent = item.num;
+        cellNum.style.fontWeight = "bold";
+
+        const cellCount = row.insertCell();
+        cellCount.textContent = item.count;
+
+        const cellOp = row.insertCell();
+        cellOp.textContent = item.operator;
+    });
+}
+
+function closeBusStats() {
+    document.getElementById("busStatsModal").style.display = "none";
+}
+
+// 點擊視窗外部關閉 (包含兩個模態視窗)
 window.onclick = function(event) {
-    const modal = document.getElementById("statsModal");
-    if (event.target == modal) {
-        modal.style.display = "none";
+    const statsModal = document.getElementById("statsModal");
+    const busModal = document.getElementById("busStatsModal");
+    
+    if (event.target == statsModal) {
+        statsModal.style.display = "none";
+    }
+    if (event.target == busModal) {
+        busModal.style.display = "none";
     }
 }
 
