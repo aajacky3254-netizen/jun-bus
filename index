@@ -1,0 +1,1183 @@
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>每日搭乘調查 (Pro版)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: "Microsoft JhengHei", Arial, sans-serif;
+      background-color: #f9fafb;
+      margin: 20px;
+      touch-action: manipulation;
+    }
+
+    h1 {
+      color: #2563eb;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    /* 裝置標籤樣式 */
+    #deviceTag {
+        font-size: 0.6em;
+        padding: 5px 10px;
+        border-radius: 15px;
+        color: white;
+        background-color: #6b7280;
+        vertical-align: middle;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      font-weight: 600;
+      color: #374151;
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      transition: border-color 0.2s;
+      box-sizing: border-box; 
+      font-size: 16px;
+    }
+
+    textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: #2563eb;
+      outline: none;
+    }
+
+    /* Choices.js 修正樣式 */
+    .choices__inner {
+        background-color: #fff;
+        border-radius: 8px;
+        min-height: 44px;
+    }
+
+    /* 按鈕樣式 */
+    button {
+      color: white !important;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-right: 8px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 500;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    
+    button:hover {
+        filter: brightness(90%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+    }
+    
+    button:active {
+        transform: translateY(0);
+    }
+    
+    button:disabled {
+        background-color: #9ca3af !important;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .btn-blue { background-color: #2563eb !important; }
+    .btn-orange { background-color: #f97316 !important; }
+    .btn-red { background-color: #dc2626 !important; }
+    .btn-purple { background-color: #7c3aed !important; }
+    .btn-green { background-color: #059669 !important; }
+    .btn-gray { background-color: #4b5563 !important; }
+
+    /* 表格樣式 */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    table th, table td {
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      text-align: center;
+      font-size: 14px;
+    }
+    
+    table th {
+        background-color: #e5e7eb;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    table tbody tr:nth-child(even) {
+      background-color: #f3f4f6;
+    }
+    
+    table tbody tr:hover {
+        background-color: #e0f2fe; /* 滑鼠懸停效果 */
+        cursor: pointer;
+    }
+    
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        max-height: 500px; /* 限制高度讓標題固定 */
+        overflow-y: auto;
+    }
+
+    /* 搜尋框樣式 */
+    .search-box {
+        position: relative;
+        margin-bottom: 10px;
+    }
+    .search-box input {
+        padding-left: 35px;
+        border: 2px solid #e5e7eb;
+    }
+    .search-icon {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #9ca3af;
+    }
+
+    /* 響應式佈局 */
+    .form-container {
+        display: block;
+    }
+    .button-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .button-group button {
+        width: 100%;
+        margin-right: 0;
+    }
+
+    @media (min-width: 768px) {
+        .form-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .full-width {
+            grid-column: span 2;
+        }
+        .button-group {
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .button-group button {
+            width: auto;
+            margin-right: 10px;
+        }
+    }
+
+    /* Modal 樣式 */
+    .modal {
+        display: none; 
+        position: fixed; 
+        z-index: 1000; 
+        left: 0;
+        top: 0;
+        width: 100%; 
+        height: 100%; 
+        overflow: auto; 
+        background-color: rgba(0,0,0,0.5); 
+        backdrop-filter: blur(2px);
+    }
+
+    .modal-content {
+        background-color: #fefefe;
+        margin: 5% auto; 
+        padding: 25px;
+        border: 1px solid #888;
+        width: 90%; 
+        max-width: 700px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .close-btn { float: right; font-size: 28px; cursor: pointer; color: #6b7280; }
+    
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+        margin-bottom: 20px;
+    }
+
+    /* Loading Overlay */
+    #loadingOverlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(255,255,255,0.8);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+    }
+    .spinner {
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #2563eb;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+        margin-bottom: 10px;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+  </style>
+</head>
+<body>
+
+  <div id="loadingOverlay">
+      <div class="spinner"></div>
+      <div style="color: #2563eb; font-weight: bold;">資料處理中...</div>
+  </div>
+
+  <h1>
+      每日搭乘調查
+      <span id="deviceTag">偵測中...</span>
+  </h1>
+
+  <div id="authSection" style="margin-bottom: 20px; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <h3 style="margin-top: 0; color: #374151;">👤 使用者認證</h3>
+    <div id="loginForm">
+      <input type="email" id="email" placeholder="Email" style="margin-bottom: 10px;">
+      <input type="password" id="password" placeholder="密碼" style="margin-bottom: 15px;">
+      <div class="button-group" style="flex-direction: row;">
+        <button type="button" class="btn-blue" onclick="login()">登入</button>
+        <button type="button" class="btn-blue" onclick="signup()">註冊</button>
+      </div>
+    </div>
+    <div id="userInfo" style="display:none;">
+      <p style="font-size: 1.1em;">歡迎回來，<span id="userEmail" style="font-weight: bold; color: #2563eb;"></span></p>
+      <button type="button" class="btn-gray" onclick="logout()">登出</button>
+    </div>
+  </div>
+
+  <form id="surveyForm">
+    <div class="form-container">
+        <div class="form-group">
+            <label for="timestamp">時間戳記</label>
+            <input type="text" id="timestamp" readonly style="background-color: #f3f4f6;"> 
+        </div>
+
+        <div class="form-group">
+            <label for="weekday">星期</label>
+            <input type="text" id="weekday" readonly style="background-color: #f3f4f6;">
+        </div>
+
+        <div class="form-group full-width">
+            <label for="operator">客運業者 (可搜尋)</label>
+            <select id="operator" name="operator" required>
+                <option value="" disabled selected>--- 請選擇客運業者 ---</option>
+                <optgroup label="基隆/新北/臺北">
+                    <option value="KeelungCity">基隆市公車處</option>
+                    <option value="KeelungBus">基隆客運</option>
+                    <option value="CapitalBus">首都客運</option>
+                    <option value="TaipeiBus">臺北客運</option>
+                    <option value="ZhinanBus">指南客運</option>
+                    <option value="NewTaipeiBus">新北客運</option>
+                    <option value="SanChung">三重客運</option>
+                    <option value="KuoKuang">國光客運</option>
+                    <option value="MetropolitanTransport">大都會客運</option>
+                    <option value="ZhongxingBus">中興巴士</option>
+                    <option value="Kuang-HuaBus">光華巴士</option>
+                    <option value="DaNan">大南汽車</option>
+                    <option value="HsinBus">欣欣客運</option>
+                    <option value="SindianBus">新店客運</option>
+                    <option value="TamshuiBus">淡水客運</option>
+                    <option value="TaoyuanBus">桃園客運</option>
+                    <option value="FuhobusInc">福和客運</option>
+                    <option value="RoyalBus">皇家客運</option>
+                    <option value="howtai">豪泰客運</option>
+                    <option value="southeastBus">東南客運</option>
+                    <option value="CitiAirBus">大有巴士</option>
+                </optgroup>
+                <optgroup label="桃園">
+                    <option value="TaoyuanBus">桃園客運</option>
+                    <option value="ZhongliBus">中壢客運</option>
+                    <option value="HsinchuBus">新竹客運</option>
+                    <option value="YatungBus">亞通客運</option>
+                    <option value="UnitedBus">統聯客運</option>
+                    <option value="SanChung">三重客運</option>
+                    <option value="ZhinanBus">指南客運</option>
+                    <option value="ChampionTransportation">金台客運</option>
+                </optgroup>
+                 <optgroup label="新竹/苗栗">
+                  <option value="HsinchuBus">新竹客運</option>
+                  <option value="KuoKuang">國光客運</option>
+                  <option value="ChampionTransportation">金牌客運</option>
+                  <option value="YosemiteBus">科技之星</option>
+                  <option value="MiaoLi">苗栗客運</option>
+                  <option value="Jet-ChenBus">捷乘客運</option>
+                  <option value="Yi-JetTechIntegration">亦捷科際</option>
+                  <option value="FengyuanBus">豐原客運</option>
+                </optgroup>
+                <optgroup label="臺中市各業者">
+                  <option value="TaichungBus">臺中客運</option>
+                  <option value="UnitedBus">統聯客運</option>
+                  <option value="GeyaBus">巨業交通</option>
+                  <option value="ChuanHang">全航客運</option>
+                  <option value="FengyuanBus">豐原客運</option>
+                  <option value="southeastBus">東南客運</option>
+                  <option value="MiaoLiBus">苗栗客運</option>
+                  <option value="UnitedBus1">中台灣客運</option>
+                  <option value="HO-HSINBus">和欣客運</option>
+                  <option value="Chung-LuBus">中鹿客運</option>
+                  <option value="AllDayBus">總達客運</option>
+                  <option value="KuoKuang">國光客運</option>
+                  <option value="freego">建明客運</option>
+                  <option value="RuiyiTransportation">睿奕交通</option>
+                </optgroup>
+                <optgroup label="彰化">
+                  <option value="ChanghuaBus">彰化客運</option>
+                  <option value="YuanLinBus">員林客運</option>
+                  <option value="Chung-LuBus">中鹿客運</option>
+                  <option value="TaichungBus">臺中客運</option>
+                  <option value="GeyaBus">巨業交通</option>
+                  <option value="taisibus">台西客運</option>
+                  <option value="UnitedBus">統聯客運</option>
+                  <option value="KuoKuang">國光客運</option>
+                  <option value="NANTOUBUS">南投客運</option>
+                  <option value="FengyuanBus">豐原客運</option>
+                  <option value="southeastBus">東南客運</option>
+                  <option value="freego">建明客運</option>
+                </optgroup>
+                <optgroup label="南投">
+                  <option value="NANTOUBUS">南投客運</option>
+                  <option value="ChanghuaBus">彰化客運</option>
+                  <option value="YuanLinBus">員林客運</option>
+                  <option value="AllDayBus">總達客運</option>
+                  <option value="TaichungBus">臺中客運</option>
+                  <option value="goto307">杉林溪客運</option>
+                  <option value="GreenTransit">豐榮客運</option>
+                  <option value="ChuanHang">全航客運</option>
+                  <option value="UnitedBus">統聯客運</option>
+                </optgroup>
+                <optgroup label="雲林">
+                  <option value="taisibus">台西客運</option>
+                  <option value="YunlinBus">雲林客運</option>
+                  <option value="SOLARbus">日統客運</option>
+                  <option value="ChiayiBus">嘉義客運</option>
+                </optgroup>
+                <optgroup label="嘉義">
+                  <option value="ChiayiCountyBus">嘉義縣公車處</option>
+                  <option value="ChiayiBus">嘉義客運</option>
+                  <option value="taisibus">台西客運</option>
+                  <option value="YunlinBus">雲林客運</option>
+                  <option value="AlishanBus">阿里山客運</option>
+                  <option value="KuoKuang">國光客運</option>
+                  <option value="Jet-ChenBus">捷乘客運</option>
+                </optgroup>
+                <optgroup label="臺南">
+                  <option value="SinhuaBus">興南客運</option>
+                  <option value="SingingBus">新營客運</option>
+                  <option value="TainanBus">府城客運</option>
+                  <option value="Han-ChengBus">漢程客運</option>
+                  <option value="GeyaBus">巨業交通</option>
+                  <option value="UnitedBus">統聯客運</option>
+                  <option value="KaohsiungBus">高雄客運</option>
+                  <option value="E-DaBus">義大客運</option>
+                </optgroup>
+                <optgroup label="高雄">
+                  <option value="KaohsiungBus">高雄客運</option>
+                  <option value="SouthTaiwanBus">南臺灣客運</option>
+                  <option value="Han-ChengBus">漢程客運</option>
+                  <option value="GreatCityLifeBus">港都客運</option>
+                  <option value="E-DaBus">義大客運</option>
+                  <option value="UnitedBus">統聯客運</option>
+                  <option value="southeastBus">東南客運</option>
+                </optgroup>
+                <optgroup label="屏東">
+                  <option value="PingTungBus">屏東客運</option>
+                  <option value="KaohsiungBus">高雄客運</option>
+                  <option value="Jet-ChenBus">捷乘客運</option>
+                </optgroup>
+                <optgroup label="宜蘭">
+                  <option value="MetropolitanTransport">大都會客運</option>
+                  <option value="CapitalBus">首都客運</option>
+                  <option value="KamalanBus">葛瑪蘭客運</option>
+                  <option value="KuoKuang">國光客運</option>
+                </optgroup>
+                <optgroup label="花蓮">
+                  <option value="TarokoBus">太魯閣客運</option>
+                  <option value="hopelandbus">華聯客運</option>
+                  <option value="UnitedBus">統聯客運</option>
+                  <option value="DiingDongBus">鼎東客運</option>
+                  <option value="ShingDongBus">興東客運</option>
+                </optgroup>
+                <optgroup label="台東">
+                  <option value="PuyumaTransportation">普悠瑪客運</option>
+                  <option value="DiingDongBus">鼎東客運</option>
+                  <option value="EasternTopTransportation">東台灣客運</option>
+                  <option value="ShingDongBus">興東客運</option>
+                </optgroup>
+                 <optgroup label="離島">
+                  <option value="phpto">澎湖縣公車處</option>
+                  <option value="matsuebus">連江縣公共車船管理處</option>
+                  <option value="Kinmen">金門縣公共車船管理處</option>
+                </optgroup>
+                <optgroup label="國道/長途客運">
+                  <option value="KuoKuang">國光客運</option>
+                  <option value="UnitedBus">統聯客運</option>
+                  <option value="CapitalBus">首都客運</option>
+                  <option value="HO-HSINBus">和欣客運</option>
+                  <option value="KamalanBus">葛瑪蘭客運</option>
+                  <option value="YatungBus">亞通客運</option>
+                  <option value="TailianBus">台聯客運</option>
+                  <option value="KeelungBus">基隆客運</option>
+                  <option value="NewTaipeiBus">新北客運</option>
+                  <option value="SanChung">三重客運</option>
+                  <option value="SindianBus">新店客運</option>
+                  <option value="TaoyuanBus">桃園客運</option>
+                  <option value="HsinchuBus">新竹客運</option>
+                  <option value="TaichungBus">臺中客運</option>
+                  <option value="AllDayBus">總達客運</option>
+                  <option value="SinhuaBus">興南客運</option>
+                  <option value="CitiAirBus">大有巴士</option>
+                  <option value="howtai">豪泰客運</option>
+                </optgroup>
+                <optgroup label="其他">
+                <option value="Other">其他業者 (請在備註欄註明)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="manufacturer">車廠 (根據業者自動列出)</label>
+            <select id="manufacturer" name="manufacturer">
+                <option value="" selected>--- 請先選擇客運業者 ---</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>路線號碼</label>
+            <input type="text" id="routeCode" placeholder="例: 307, 藍線">
+        </div>
+
+        <div class="form-group">
+            <label>車號</label>
+            <input type="text" id="busNumber" required placeholder="例: KKA-1234">
+        </div>
+
+        <div class="form-group">
+            <label>車型</label>
+            <select id="busType" name="busType" required>
+                <option value="" disabled selected>--- 請選擇車型 ---</option>
+                <option value="dieselbus">柴油巴士</option>
+                <option value="electricbus">電動巴士</option>
+                <option value="articulatedbus">雙節巴士</option>
+                <option value="minibus">小型巴士</option>
+                <option value="Freewaybusservice">國道客運</option>
+                <option value="Other">其他</option>
+            </select>
+        </div>
+
+        <div class="form-group full-width">
+            <label>備註</label>
+            <textarea id="note" placeholder="路況、司機、擁擠程度..."></textarea>
+        </div>
+
+        <div class="button-group full-width">
+            <button type="button" onclick="saveData()" class="btn-orange">💾 儲存紀錄</button>
+            <button type="button" onclick="saveEdit()" class="btn-blue" id="btnEdit" style="display:none;">✏️ 儲存修改</button>
+            <button type="button" onclick="deleteRecord()" class="btn-red" id="btnDelete" style="display:none;">🗑️ 刪除紀錄</button>
+            <button type="button" onclick="cancelEdit()" class="btn-gray" id="btnCancel" style="display:none;">❌ 取消編輯</button>
+            
+            <input type="file" id="importFile" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleFileSelect(this)">
+            <button type="button" onclick="document.getElementById('importFile').click()" class="btn-green">📥 匯入資料</button>
+            <button type="button" onclick="exportCSV()" class="btn-blue">📤 匯出 CSV</button>
+            <button type="button" onclick="showStats()" class="btn-purple">📊 統計圖表</button>
+            <button type="button" onclick="showBusStats()" class="btn-green">🚌 車號統計列表</button>
+            <button type="button" onclick="deleteAllRecords()" class="btn-red">⚠️ 清空全部</button>
+        </div>
+    </div>
+  </form>
+
+  <hr style="margin: 30px 0; border: 0; border-top: 1px solid #e5e7eb;">
+
+  <h2>紀錄清單</h2>
+  <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="tableSearch" placeholder="搜尋紀錄... (輸入車號、路線或業者)" onkeyup="filterTable()">
+  </div>
+  
+  <div class="table-responsive">
+      <table border="1" id="recordTable">
+        <thead>
+          <tr>
+            <th>時間</th><th>星期</th><th>客運業者</th>
+            <th>車廠</th><th>路線</th><th>車號</th>
+            <th>車型</th><th>備註</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+  </div>
+
+  <div id="statsModal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeStats()">&times;</span>
+      <h2 style="text-align: center; color: #2563eb;">📊 搭乘統計分析</h2>
+      
+      <div style="display: flex; justify-content: space-around; margin-bottom: 20px; font-size: 1.2em;">
+          <div>總次數: <b id="statTotal" style="color:#2563eb">0</b></div>
+          <div>不同車輛: <b id="statUnique" style="color:#059669">0</b></div>
+      </div>
+
+      <div class="chart-container">
+          <canvas id="operatorChart"></canvas>
+      </div>
+      <div class="chart-container">
+          <canvas id="routeChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+    <div id="busStatsModal" class="modal">
+    <div class="modal-content wide-modal">
+      <span class="close-btn" onclick="closeBusStats()">&times;</span>
+      <h2 style="text-align: center; color: #059669;">🚌 車號統計列表</h2>
+      <p style="text-align: center; margin-bottom: 20px; color: #666;">依照車號排序 (A-Z)</p>
+      <div class="table-responsive">
+          <table class="bus-list-table">
+            <thead><tr><th>車號</th><th>次數</th><th>所屬客運業者</th></tr></thead>
+            <tbody id="busListBody"></tbody>
+          </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+// --- 1. Firebase 初始化 ---
+const firebaseConfig = {
+    apiKey: "AIzaSyAKTHlEzkOx8uZWOcfTr8YHZj6-bd74MeE",
+    authDomain: "jun-bus.firebaseapp.com",
+    projectId: "jun-bus",
+    storageBucket: "jun-bus.firebasestorage.app",
+    messagingSenderId: "685457601811",
+    appId: "1:685457601811:web:02f59887b6895879ac96e6",
+    measurementId: "G-HPTP7MMCDV"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// --- 2. 全域變數與資料 ---
+let editDocId = null;
+let globalRecords = [];
+let operatorChoiceInstance = null;
+let charts = {}; // 存放 Chart.js 實例
+
+const OPERATOR_NAMES = {
+    "KeelungCity": "基隆市公車處", "KeelungBus": "基隆客運", "CapitalBus": "首都客運", "TaipeiBus": "臺北客運",
+    "ZhinanBus": "指南客運", "NewTaipeiBus": "新北客運", "SanChung": "三重客運", "KuoKuang": "國光客運",
+    "MetropolitanTransport": "大都會客運", "ZhongxingBus": "中興巴士", "Kuang-HuaBus": "光華巴士", "DaNan": "大南汽車",
+    "HsinBus": "欣欣客運", "SindianBus": "新店客運", "TamshuiBus": "淡水客運", "TaoyuanBus": "桃園客運",
+    "FuhobusInc": "福和客運", "RoyalBus": "皇家客運", "howtai": "豪泰客運", "southeastBus": "東南客運",
+    "CitiAirBus": "大有巴士", "ZhongliBus": "中壢客運", "HsinchuBus": "新竹客運", "YatungBus": "亞通客運",
+    "UnitedBus": "統聯客運", "ChampionTransportation": "金台客運", "UnitedBus1": "中台灣客運",
+    "YosemiteBus": "科技之星", "MiaoLi": "苗栗客運", "Jet-ChenBus": "捷乘客運", "Yi-JetTechIntegration": "亦捷科際",
+    "FengyuanBus": "豐原客運", "TaichungBus": "臺中客運", "GeyaBus": "巨業交通", "ChuanHang": "全航客運",
+    "MiaoLiBus": "苗栗客運", "HO-HSINBus": "和欣客運", "Chung-LuBus": "中鹿客運", "AllDayBus": "總達客運",
+    "freego": "建明客運", "RuiyiTransportation": "睿奕交通", "NANTOUBUS": "南投客運", "ChanghuaBus": "彰化客運",
+    "YuanLinBus": "員林客運", "taisibus": "台西客運", "goto307": "杉林溪客運",
+    "GreenTransit": "豐榮客運", "YunlinBus": "雲林客運", "SOLARbus": "日統客運", "ChiayiBus": "嘉義客運",
+    "ChiayiCountyBus": "嘉義縣公車處", "AlishanBus": "阿里山客運", "SinhuaBus": "興南客運", "SingingBus": "新營客運",
+    "TainanBus": "府城客運", "Han-ChengBus": "漢程客運", "KaohsiungBus": "高雄客運", "E-DaBus": "義大客運",
+    "SouthTaiwanBus": "南臺灣客運", "GreatCityLifeBus": "港都客運", "PingTungBus": "屏東客運", "KamalanBus": "葛瑪蘭客運",
+    "TarokoBus": "太魯閣客運", "hopelandbus": "華聯客運", "DiingDongBus": "鼎東客運", "ShingDongBus": "興東客運",
+    "PuyumaTransportation": "普悠瑪客運", "EasternTopTransportation": "東台灣客運", "TailianBus": "台聯客運",
+    "Kinmen": "金門縣公共車船管理處", "matsuebus": "連江縣公共車船管理處", "phpto": "澎湖縣公車處", 
+    "Other": "其他業者"
+};
+
+const BUSTYPE_NAMES = {
+    "dieselbus": "柴油巴士", "electricbus": "電動巴士", "articulatedbus": "雙節巴士",
+    "minibus": "小型巴士", "Freewaybusservice": "國道客運", "Other": "其他"
+};
+
+// 簡化的車廠對照表 (維持你原有的資料)
+const operatorToManufacturer = {
+    "TaichungBus": ["霧峰站", "豐原站", "東海站", "高鐵站", "清水站", "沙鹿站", "大甲站", "國道站", "梧棲站"],
+    "UnitedBus": ["豐勢站", "清水站", "烏日站", "新福站", "霧峰站", "中科站", "干城站", "光復站", "大園站", "東勇站", "八德站", "平鎮站", "金馬站", "西港站", "竹山站", "斗六站", "北港站", "嘉義站", "永康站", "鼓山站", "羅東站", "花蓮站", "瑞豐站"],
+    "GeyaBus": ["大甲站", "沙鹿站", "嶺東站", "聯邦停車場"],
+    "ChuanHang": ["旱溪站", "聯邦停車場"],
+    "FengyuanBus": ["台中站", "豐原站", "東勢站", "大甲站", "谷關站", "卓蘭站", "梧棲站"],
+    "southeastBus": ["苑裡站", "大里站", "內湖站", "萬芳站", "高雄站"],
+    "MiaoLiBus": ["南苗站", "頭份站", "南庄站", "苑裡站", "新竹站", "苗栗站"],
+    "UnitedBus1": ["豐勢站", "清水站", "烏日站", "新福站", "霧峰站", "中科站", "干城站"],
+    "HO-HSINBus": ["台北站", "台中站", "台南站", "高雄站"],
+    "Chung-LuBus": ["大甲站", "北屯站", "嶺東站", "聯邦停車場"],
+    "AllDayBus": ["台中站", "水里站", "南投站"],
+    "KuoKuang": ["干城站", "五股站", "暖暖站", "金山站", "羅東站", "宜蘭站", "桃園站", "中壢站", "新竹站", "竹東站", "苗栗站", "彰化站", "南投站", "埔里站", "嘉義站", "台南站"],
+    "freego": ["苑裡站(東南客運)"],
+    "RuiyiTransportation": ["梧棲站", "大甲站", "東海大學"],
+    "NANTOUBUS": ["埔里站"],
+    "ChanghuaBus": ["彰化站", "員林站", "水尾站", "鹿港站", "南投站", "草屯站", "田中站"],
+    "YuanLinBus": ["溪湖站", "二林站", "員林站", "彰化站", "田中站", "台中站", "竹山站", "水里站", "鹿谷站"],
+    "CapitalBus": ["三重一站", "三重二站", "二重站", "新莊一站", "新莊二站", "新莊站(大都會客運)", "三峽一站(台北客運)", "內湖站", "東園站", "士林站", "南港站", "經貿新站(充電站)", "經貿站", "汐止一站", "汐止二站", "社子站", "安康站", "羅東站", "民生站(台北客運)", "板橋前站(台北客運)", "板橋站", "八斗子站", "基隆站", "花蓮站", "五結站"],
+    "KamalanBus": ["大園站", "羅東站"],
+    "YatungBus": ["新店站", "新竹站"],
+    "KeelungBus": ["基隆站", "金山站", "瑞芳站", "土城站"],
+    "NewTaipeiBus": ["五堵站", "北士科站(光華巴士)"],
+    "SanChung": ["蘆洲一站", "蘆洲二站", "新莊站", "中港站", "土城站", "八里站", "五股站", "五股二站", "樹林站", "迴龍站", "淡海站", "公西站", "林口站", "南港站"],
+    "SindianBus": ["新店站", "錦繡站"],
+    "TaoyuanBus": ["中壢公車站", "觀音站", "大溪站", "中壢站", "竹圍站", "龍潭站", "大園站", "三峽站", "桃園公車站", "中壢站"],
+    "HsinchuBus": ["新竹站"],
+    "SinhuaBus": ["安平工業區", "臺南火車站", "佳里站", "新化站", "麻豆站", "玉井站", "楠西站"],
+    "CitiAirBus": ["舊莊站", "新莊站", "中華站"],
+    "howtai": ["五股站", "香山站"],
+    "TaipeiBus": ["南雅站", "歡仔園站", "板橋後站", "五福站", "四海站", "中和站", "樹林站", "新店站", "三峽一站", "三峽二站", "木柵站", "中華站", "林口站", "蘆洲站", "民生站", "板橋前站", "江子翠站", "士林站(首都客運)", "象頭埔停車場", "瑞芳站", "蘇澳站(大都會客運)", "花蓮站"],
+    "HsinBus": ["中央站", "中興站", "富德站", "木柵二站(充電站)", "木柵站(充電站)", "東湖站", "深坑站", "華江站", "景新站", "景德站", "興隆停車場"],
+    "DaNan": ["秀山站", "土城站", "關渡站", "內湖站", "中央站(欣欣客運)", "景新站(欣欣客運)", "三鶯轉運站"],
+    "NewTaipeiBus": ["五堵站", "北士科站(光華巴士)"],
+    "ZhongxingBus": ["中和站", "汐止站", "天母站", "故宮站", "泰山站", "三重站", "三芝站(淡水客運)", "北士科充電站(光華巴士)", "北士科站(光華巴士)", "中壢站"],
+    "TamshuiBus": ["淡水站", "三芝站", "八里站", "新市站"],
+    "ZhinanBus": ["新光站", "深坑站", "安和站", "淡海站", "樹林站", "錦繡站", "淡大站", "五股站", "泰山站", "故宮站(中興巴士)", "麟光站", "三重站(中興巴士)", "新市站(淡水客運)", "八里站(淡水客運)", "桃園站", "北士科充電站(光華巴士)"],
+    "MetropolitanTransport": ["內湖站", "萬芳站", "陽明山站", "東園站", "蘆洲站", "松德站", "榮總站", "吳興街站", "中和站", "四海站(臺北客運)", "凌雲站", "東湖站", "松職站", "麟光站", "舊莊站", "士林站", "建北站", "新莊站", "蘇澳站", "基隆站", "林口站(台北客運)", "新莊二站(首都客運)", "象頭埔停車場(台北客運)", "新店站(台北客運)", "民生站"],
+    "FuhobusInc": ["大武崙站"],
+    "Kuang-HuaBus": ["東湖站", "北峰站", "北士科站", "天東站", "天西站", "海專站", "故宮站", "麟光站", "中和站", "基隆站(基隆客運)"],
+    "RoyalBus": ["加投站"],
+    "TaoyuanBus": ["中壢公車站", "觀音站", "大溪站", "中壢站", "竹圍站", "龍潭站", "大園站", "三峽站", "桃園公車站", "中壢站"],
+    "ZhongliBus": ["中壢站", "桃園站"],
+    "YatungBus": ["新店站", "新竹站"],
+    "KamalanBus": ["大園站", "羅東站"],
+    "YosemiteBus": ["新竹站"],
+    "taisibus": ["斗六站", "虎尾西站", "北港站", "西螺站", "斗南站", "竹山站"],
+    "NANTOUBU": ["台中干城站", "高鐵台中站", "草屯服務處", "埔里轉運站", "日月潭站"],
+    "GreenTransit": ["中興站"],
+    "AlishanBus": ["太保站"],
+    "YunlinBus": ["雲科大站"],
+    "SOLARbus": ["斗六站", "西螺站", "麥寮站"],
+    "ChiayiBus": ["總公司", "中山總站", "北港站", "朴子站"],
+    "TainanBus": ["頂東站", "茄萣站", "仁德轉運站（胸腔病院旁)", "塭南里", "下鯤鯓站"],
+    "SinhuaBus": ["安平工業區", "臺南火車站", "佳里站", "新化站", "麻豆站", "玉井站", "楠西站"],
+    "SingingBus": ["總公司", "新營站", "白河站"],
+    "Han-ChengBus": ["金獅湖站", "新營站"],
+    "GreatCityLifeBus": ["加昌站", "小港站", "左營南站", "前鎮站", "建軍站"],
+    "KaohsiungBus": ["總公司", "林園站", "小琉球站", "鳳山站", "大順站", "建國站", "楠梓站", "岡山站", "茄萣站", "旗山轉運站", "旗山北站", "美濃站", "六龜站", "甲仙站", "台南站", "水門轉運站"],
+    "SouthTaiwanBus": ["高雄站"],
+    "E-DaBus": ["義大站"],
+    "PingTungBus": ["屏東站", "屏科大", "里港站", "高樹站", "美濃站", "水門站", "鹽埔站", "潮州站", "東港站", "枋寮站", "恆春站", "共營中心"],
+    "TarokoBus": ["東華大學站",],
+    "PuyumaTransportation": ["更生路車廠"],
+    "phpto": ["馬公總站"],
+    "matsuebus": ["北竿", "南竿", "東莒", "西莒", "東引"],
+    "Kinmen": ["金城站(金城停車場)", "山外站(建華停車場)", "沙美站", "烈嶼站"]
+};
+
+// --- 3. 初始化與工具函式 ---
+
+// 顯示/隱藏 Loading
+function toggleLoading(show) {
+    document.getElementById("loadingOverlay").style.display = show ? "flex" : "none";
+}
+
+// 顯示 Toast 通知 (SweetAlert2)
+const Toast = Swal.mixin({
+    toast: true, position: 'top-end', showConfirmButton: false, timer: 3000,
+    timerProgressBar: true, didOpen: (toast) => {
+        toast.addEventListener('mouseenter', Swal.stopTimer)
+        toast.addEventListener('mouseleave', Swal.resumeTimer)
+    }
+});
+
+function showToast(icon, title) {
+    Toast.fire({ icon: icon, title: title });
+}
+
+// 裝置偵測
+function detectDevice() {
+    const width = window.innerWidth;
+    const tag = document.getElementById("deviceTag");
+    if (width < 768) { tag.textContent = "📱 手機版"; tag.style.backgroundColor = "#10b981"; }
+    else { tag.textContent = "💻 電腦版"; tag.style.backgroundColor = "#3b82f6"; }
+}
+window.addEventListener('resize', detectDevice);
+detectDevice();
+
+// 初始化 Choices.js
+document.addEventListener('DOMContentLoaded', function() {
+    const opSelect = document.getElementById('operator');
+    
+    operatorChoiceInstance = new Choices(opSelect, {
+        searchEnabled: true,
+        shouldSort: false,      // 🛑 禁止自動排序
+        shouldSortItems: false, // 🛑 確保內容選項也不會被重新排序
+        itemSelectText: '',
+        placeholder: true,
+        placeholderValue: '請搜尋或選擇客運業者'
+    });
+
+    // 監聽 Choices.js 的改變事件來連動車廠
+    opSelect.addEventListener('change', function(event) {
+        updateManufacturer(event.target.value);
+    });
+
+    // 車號自動轉大寫
+    document.getElementById("busNumber").addEventListener("input", function() {
+        this.value = this.value.toUpperCase();
+    });
+    
+    updateTimestamp();
+});
+
+function updateManufacturer(operatorValue) {
+    const manuSelect = document.getElementById("manufacturer");
+    manuSelect.innerHTML = "";
+    
+    const stations = operatorToManufacturer[operatorValue];
+    
+    if (stations) {
+        const def = document.createElement("option");
+        def.value = ""; def.textContent = "--- 請選擇車廠/場站 (選填) ---"; def.selected = true;
+        manuSelect.appendChild(def);
+        stations.forEach(m => {
+            const op = document.createElement("option");
+            op.value = m; op.textContent = m;
+            manuSelect.appendChild(op);
+        });
+    } else {
+        const op = document.createElement("option");
+        op.value = ""; op.textContent = "無對應車廠資料 (可略過)";
+        manuSelect.appendChild(op);
+    }
+}
+
+function updateTimestamp() {
+    const now = new Date();
+    // 修改處：設定時間格式為 YYYY/MM/DD 上午H:MM:SS
+    const timeString = now.toLocaleString('zh-TW', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: 'numeric', minute: '2-digit', second: '2-digit',
+        hour12: true
+    });
+    document.getElementById("timestamp").value = timeString;
+    
+    const w = ["日","一","二","三","四","五","六"];
+    document.getElementById("weekday").value = "星期" + w[now.getDay()];
+}
+
+// --- 4. 使用者認證 ---
+auth.onAuthStateChanged(user => {
+    if (user) {
+        document.getElementById("userEmail").textContent = user.email;
+        document.getElementById("loginForm").style.display = "none";
+        document.getElementById("userInfo").style.display = "block";
+        loadRecords(user.uid);
+    } else {
+        document.getElementById("loginForm").style.display = "block";
+        document.getElementById("userInfo").style.display = "none";
+        document.getElementById("recordTable").querySelector("tbody").innerHTML = "";
+        globalRecords = [];
+    }
+});
+
+async function login() {
+    const e = document.getElementById("email").value, p = document.getElementById("password").value;
+    if(!e || !p) return showToast('warning', '請輸入帳號密碼');
+    toggleLoading(true);
+    try { await auth.signInWithEmailAndPassword(e,p); showToast('success', '登入成功'); }
+    catch(err){ showToast('error', err.message); }
+    finally { toggleLoading(false); }
+}
+
+async function signup() {
+    const e = document.getElementById("email").value, p = document.getElementById("password").value;
+    if(p.length<6) return showToast('warning', '密碼需6位以上');
+    toggleLoading(true);
+    try { await auth.createUserWithEmailAndPassword(e,p); showToast('success', '註冊成功'); }
+    catch(err){ showToast('error', err.message); }
+    finally { toggleLoading(false); }
+}
+
+function logout() { auth.signOut(); showToast('info', '已登出'); }
+
+// --- 5. 資料操作 CRUD ---
+
+// 儲存資料
+async function saveData() {
+    const user = auth.currentUser; 
+    if(!user) return showToast('warning', '請先登入');
+    
+    const op = document.getElementById("operator").value;
+    const type = document.getElementById("busType").value;
+    const num = document.getElementById("busNumber").value;
+    const route = document.getElementById("routeCode").value;
+    const manu = document.getElementById("manufacturer").value;
+    const note = document.getElementById("note").value;
+
+    if(!op || !type || num.trim()==="") return showToast('warning', '請填寫客運、車型與車號');
+
+    toggleLoading(true);
+    try {
+        const data = {
+            userId: user.uid,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            weekday: document.getElementById("weekday").value,
+            operator: op, manufacturer: manu, routeCode: route,
+            busNumber: num.toUpperCase(), busType: type, note: note
+        };
+        
+        await db.collection("busRecords").add(data);
+        showToast('success', '紀錄已儲存');
+        resetForm();
+    } catch(e) { console.error(e); showToast('error', '儲存失敗'); }
+    finally { toggleLoading(false); }
+}
+
+// 載入編輯
+function loadToForm(id, r) {
+    editDocId = id;
+    
+    operatorChoiceInstance.setChoiceByValue(r.operator);
+    setTimeout(() => document.getElementById("manufacturer").value = r.manufacturer, 100);
+    
+    document.getElementById("routeCode").value = r.routeCode;
+    document.getElementById("busNumber").value = r.busNumber;
+    document.getElementById("busType").value = r.busType;
+    document.getElementById("note").value = r.note;
+    
+    // UI 切換
+    document.getElementById("btnEdit").style.display = "inline-flex";
+    document.getElementById("btnDelete").style.display = "inline-flex";
+    document.getElementById("btnCancel").style.display = "inline-flex";
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEdit() {
+    resetForm();
+    showToast('info', '已取消編輯');
+}
+
+async function saveEdit() {
+    if(!editDocId) return;
+    toggleLoading(true);
+    try {
+        await db.collection("busRecords").doc(editDocId).update({
+            operator: document.getElementById("operator").value,
+            manufacturer: document.getElementById("manufacturer").value,
+            routeCode: document.getElementById("routeCode").value,
+            busNumber: document.getElementById("busNumber").value.toUpperCase(),
+            busType: document.getElementById("busType").value,
+            note: document.getElementById("note").value
+        });
+        showToast('success', '修改成功');
+        resetForm();
+    } catch(e) { showToast('error', '修改失敗'); }
+    finally { toggleLoading(false); }
+}
+
+async function deleteRecord() {
+    if(!editDocId) return;
+    
+    const result = await Swal.fire({
+        title: '確定刪除?', text: "這筆資料將無法復原", icon: 'warning',
+        showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: '是的, 刪除!'
+    });
+
+    if (result.isConfirmed) {
+        toggleLoading(true);
+        try {
+            await db.collection("busRecords").doc(editDocId).delete();
+            showToast('success', '已刪除');
+            resetForm();
+        } catch(e){ showToast('error', '刪除失敗'); }
+        finally { toggleLoading(false); }
+    }
+}
+
+async function deleteAllRecords() {
+    const user = auth.currentUser; if(!user) return;
+    const result = await Swal.fire({
+        title: '⚠️ 危險操作', text: "確定要清空所有紀錄嗎？", icon: 'warning',
+        showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: '全部清空!'
+    });
+
+    if (result.isConfirmed) {
+        toggleLoading(true);
+        try {
+            const q = await db.collection("busRecords").where("userId","==",user.uid).get();
+            const batch = db.batch();
+            q.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            showToast('success', '資料庫已清空');
+            resetForm();
+        } catch(e){ showToast('error', '清空失敗'); }
+        finally { toggleLoading(false); }
+    }
+}
+
+function resetForm() {
+    document.getElementById("surveyForm").reset();
+    operatorChoiceInstance.setChoiceByValue(""); // 重置 Choices
+    editDocId = null;
+    document.getElementById("btnEdit").style.display = "none";
+    document.getElementById("btnDelete").style.display = "none";
+    document.getElementById("btnCancel").style.display = "none";
+    updateTimestamp();
+}
+
+// 載入資料列表
+function loadRecords(uid) {
+    db.collection("busRecords").where("userId","==",uid).orderBy("timestamp","desc").onSnapshot(snapshot => {
+        const tbody = document.getElementById("recordTable").querySelector("tbody");
+        tbody.innerHTML = "";
+        globalRecords = [];
+        
+        snapshot.docs.forEach(doc => {
+            const r = doc.data();
+            globalRecords.push(r);
+            const row = tbody.insertRow(-1);
+            
+            // 顯示名稱處理
+            const opName = OPERATOR_NAMES[r.operator] || r.operator;
+            // 修改處：列表顯示格式
+            const ts = r.timestamp ? r.timestamp.toDate().toLocaleString('zh-TW', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: 'numeric', minute: '2-digit', second: '2-digit',
+                hour12: true
+            }) : 'N/A';
+            
+            // 將車型轉為中文
+            const busTypeName = BUSTYPE_NAMES[r.busType] || r.busType;
+            
+            row.innerHTML = `
+                <td>${ts}</td>
+                <td>${r.weekday}</td>
+                <td>${opName}</td>
+                <td>${r.manufacturer || '-'}</td>
+                <td>${r.routeCode || '-'}</td>
+                <td><b>${r.busNumber}</b></td>
+                <td>${busTypeName}</td>
+                <td style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.note}</td>
+            `;
+            row.onclick = () => loadToForm(doc.id, r);
+        });
+    });
+}
+
+// --- 6. 表格搜尋功能 ---
+function filterTable() {
+    const input = document.getElementById("tableSearch");
+    const filter = input.value.toUpperCase();
+    const table = document.getElementById("recordTable");
+    const tr = table.getElementsByTagName("tr");
+
+    for (let i = 1; i < tr.length; i++) {
+        let visible = false;
+        const tds = tr[i].getElementsByTagName("td");
+        for (let j = 0; j < tds.length; j++) {
+            if (tds[j] && tds[j].textContent.toUpperCase().indexOf(filter) > -1) {
+                visible = true; break;
+            }
+        }
+        tr[i].style.display = visible ? "" : "none";
+    }
+}
+
+// --- 7. 匯出/匯入/統計 ---
+function exportCSV() {
+    if(globalRecords.length===0) return showToast('info', '無資料可匯出');
+    const data = globalRecords.map(r => ({
+        // 修改處：匯出格式
+        "時間": r.timestamp ? r.timestamp.toDate().toLocaleString('zh-TW', {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: 'numeric', minute: '2-digit', second: '2-digit',
+            hour12: true
+        }) : "",
+        "星期": r.weekday, "客運": r.operator, "車廠": r.manufacturer,
+        "路線": r.routeCode, "車號": r.busNumber, "車型": BUSTYPE_NAMES[r.busType]||r.busType, "備註": r.note
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, "Records");
+    saveAs(new Blob([XLSX.write(wb,{bookType:'csv',type:'array'})],{type:'text/csv;charset=utf-8;'}), "bus_record.csv");
+}
+
+function handleFileSelect(input) {
+    const f = input.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = e => {
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+        const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+        if(confirm(`匯入 ${data.length} 筆資料?`)) processImport(data);
+        input.value = "";
+    };
+    r.readAsArrayBuffer(f);
+}
+
+async function processImport(data) {
+    const user = auth.currentUser; if(!user) return;
+    toggleLoading(true);
+    let count = 0;
+    try {
+        const batchSize = 500; // Firestore batch limit
+        let batch = db.batch();
+        
+        for(let i=0; i<data.length; i++) {
+            const r = data[i];
+            const docRef = db.collection("busRecords").doc();
+            batch.set(docRef, {
+                userId: user.uid,
+                timestamp: firebase.firestore.Timestamp.now(), // 簡化：匯入使用當下時間，或需解析Excel時間
+                weekday: "匯入",
+                operator: r['客運業者'] || r['客運'] || "Other",
+                manufacturer: r['車廠'] || "",
+                routeCode: String(r['路線碼'] || r['路線'] || ""),
+                busNumber: String(r['車號'] || "UNKNOWN").toUpperCase(),
+                busType: r['車型'] || "Other",
+                note: r['備註'] || "批次匯入"
+            });
+            count++;
+            if(count % batchSize === 0) { await batch.commit(); batch = db.batch(); }
+        }
+        if(count % batchSize !== 0) await batch.commit();
+        showToast('success', `成功匯入 ${count} 筆資料`);
+    } catch(e) { console.error(e); showToast('error', '匯入發生錯誤'); }
+    finally { toggleLoading(false); }
+}
+
+// 顯示統計 (使用 Chart.js)
+function showStats() {
+    if(globalRecords.length===0) return showToast('info', '目前沒有資料');
+    document.getElementById("statsModal").style.display = "block";
+    
+    // 計算數據
+    document.getElementById("statTotal").textContent = globalRecords.length;
+    document.getElementById("statUnique").textContent = new Set(globalRecords.map(r=>r.busNumber)).size;
+
+    const opCounts = {};
+    const routeCounts = {};
+    
+    globalRecords.forEach(r => {
+        const op = OPERATOR_NAMES[r.operator] || r.operator;
+        opCounts[op] = (opCounts[op] || 0) + 1;
+        
+        const rt = r.routeCode || "未填寫";
+        routeCounts[rt] = (routeCounts[rt] || 0) + 1;
+    });
+
+    // 繪製圖表
+    renderChart('operatorChart', '客運搭乘分佈', opCounts, 'pie');
+    renderChart('routeChart', '最常搭的路線 (Top 10)', routeCounts, 'bar');
+}
+
+function renderChart(canvasId, label, dataObj, type) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    
+    // 排序並取 Top 10
+    const sortedData = Object.entries(dataObj).sort((a,b)=>b[1]-a[1]).slice(0, 10);
+    const labels = sortedData.map(d => d[0]);
+    const values = sortedData.map(d => d[1]);
+
+    if(charts[canvasId]) charts[canvasId].destroy(); // 銷毀舊圖表
+
+    charts[canvasId] = new Chart(ctx, {
+        type: type,
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '次數',
+                data: values,
+                backgroundColor: [
+                    '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
+                    '#6366f1', '#ec4899', '#14b8a6', '#f97316', '#64748b'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: { display: true, text: label, font: {size: 16} },
+                legend: { display: type === 'pie' } // 長條圖不顯示圖例
+            }
+        }
+    });
+}
+
+function closeStats() { document.getElementById("statsModal").style.display="none"; }
+
+// --- 新增：車號統計列表 JS 邏輯 ---
+function showBusStats() {
+    if(globalRecords.length===0) return showToast('info', '目前沒有資料');
+    document.getElementById("busStatsModal").style.display = "block";
+
+    const busMap = {};
+    globalRecords.forEach(r => {
+        const num = r.busNumber;
+        if(!busMap[num]) {
+            busMap[num] = {
+                count: 0,
+                operator: OPERATOR_NAMES[r.operator] || r.operator
+            };
+        }
+        busMap[num].count++;
+    });
+
+    const tbody = document.getElementById("busListBody");
+    tbody.innerHTML = "";
+    
+    // Sort A-Z
+    Object.keys(busMap).sort().forEach(num => {
+        const item = busMap[num];
+        const row = `<tr>
+            <td><b>${num}</b></td>
+            <td>${item.count}</td>
+            <td>${item.operator}</td>
+        </tr>`;
+        tbody.innerHTML += row;
+    });
+}
+function closeBusStats() { document.getElementById("busStatsModal").style.display = "none"; }
+
+window.onclick = e => { if(e.target.className==="modal") e.target.style.display="none"; }
+
+</script>
+</body>
+</html>
