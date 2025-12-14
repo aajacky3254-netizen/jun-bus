@@ -1050,6 +1050,7 @@ function handleFileSelect(input) {
     r.readAsArrayBuffer(f);
 }
 
+// --- 修改後的 processImport 函式 ---
 async function processImport(data) {
     const user = auth.currentUser; if(!user) return;
     toggleLoading(true);
@@ -1058,13 +1059,39 @@ async function processImport(data) {
         const batchSize = 500; // Firestore batch limit
         let batch = db.batch();
         
+        // 星期陣列，用於自動計算匯入日期的星期
+        const w = ["日","一","二","三","四","五","六"];
+        
         for(let i=0; i<data.length; i++) {
             const r = data[i];
+            
+            // --- 時間解析邏輯 ---
+            let ts = new Date();
+            // 嘗試讀取時間欄位 (相容 '時間戳記' 或 '時間')
+            const rawTime = r['時間戳記'] || r['時間'];
+            
+            if(rawTime) {
+                 if(typeof rawTime ==='number') {
+                    // Excel 數字格式轉換
+                    ts = new Date(Math.round((rawTime - 25569) * 86400000));
+                 } else {
+                    // 字串格式直接轉換
+                    ts = new Date(rawTime);
+                 }
+            }
+            
+            // 如果日期無效，則回退到當下時間
+            if (isNaN(ts.getTime())) ts = new Date();
+            
+            // 自動計算星期
+            const weekdayStr = "星期" + w[ts.getDay()];
+            // ------------------
+
             const docRef = db.collection("busRecords").doc();
             batch.set(docRef, {
                 userId: user.uid,
-                timestamp: firebase.firestore.Timestamp.now(), // 簡化：匯入使用當下時間，或需解析Excel時間
-                weekday: "匯入",
+                timestamp: firebase.firestore.Timestamp.fromDate(ts),
+                weekday: weekdayStr, // 使用計算後的星期
                 operator: r['客運業者'] || r['客運'] || "Other",
                 manufacturer: r['車廠'] || "",
                 routeCode: String(r['路線碼'] || r['路線'] || ""),
