@@ -313,118 +313,143 @@
             <label for="operator">客運業者 (可搜尋)</label>
             <select id="operator" name="operator" required>
                 <option value="" disabled selected>--- 請選擇客運業者 ---</option>
-                <optgroup label="基隆市">
+                <optgroup label="基隆/新北/臺北">
                     <option value="KeelungCity">基隆市公車處</option>
                     <option value="KeelungBus">基隆客運</option>
-                </optgroup>
-                <optgroup label="新北市">
+                    <option value="CapitalBus">首都客運</option>
                     <option value="TaipeiBus">臺北客運</option>
+                    <option value="ZhinanBus">指南客運</option>
                     <option value="NewTaipeiBus">新北客運</option>
                     <option value="SanChung">三重客運</option>
-                    <option value="ZhinanBus">指南客運</option>
-                    <option value="TamshuiBus">淡水客運</option>
-                    <option value="FuhobusInc">福和客運</option>
-                    <option value="RoyalBus">皇家客運</option>
-                </optgroup>
-                <optgroup label="臺北市">
-                    <option value="CapitalBus">首都客運</option>
-                    <option value="MetropolitanTransport">大都會客運</option>
                     <option value="KuoKuang">國光客運</option>
+                    <option value="MetropolitanTransport">大都會客運</option>
                     <option value="ZhongxingBus">中興巴士</option>
                     <option value="Kuang-HuaBus">光華巴士</option>
                     <option value="DaNan">大南汽車</option>
                     <option value="HsinBus">欣欣客運</option>
                     <option value="SindianBus">新店客運</option>
+                    <option value="TamshuiBus">淡水客運</option>
+                    <option value="TaoyuanBus">桃園客運</option>
+                    <option value="howtai">豪泰客運</option>
                     <option value="southeastBus">東南客運</option>
                     <option value="CitiAirBus">大有巴士</option>
                 </optgroup>
-                <optgroup label="桃園市">
+                <optgroup label="桃園">
                     <option value="TaoyuanBus">桃園客運</option>
                     <option value="ZhongliBus">中壢客運</option>
                     <option value="YatungBus">亞通客運</option>
-                </optgroup>
-                <optgroup label="新竹縣/市">
-                    <option value="HsinchuBus">新竹客運</option>
-                    <option value="YosemiteBus">科技之星</option>
-                    <option value="ChampionTransportation">金台客運(金牌)</option>
-                    <option value="howtai">豪泰客運</option>
-                </optgroup>
-                <optgroup label="苗栗縣">
-                    <option value="MiaoLi">苗栗客運</option>
-                    <option value="Jet-ChenBus">捷乘客運</option>
-                    <option value="Yi-JetTechIntegration">亦捷科際</option>
-                </optgroup>
-                <optgroup label="臺中市">
-                    <option value="TaichungBus">臺中客運</option>
                     <option value="UnitedBus">統聯客運</option>
-                    <option value="FengyuanBus">豐原客運</option>
-                    <option value="GeyaBus">巨業交通</option>
-                    <option value="ChuanHang">全航客運</option>
-                    <option value="UnitedBus1">中台灣客運</option>
-                    <option value="Chung-LuBus">中鹿客運</option>
-                    <option value="AllDayBus">總達客運</option>
-                    <option value="HO-HSINBus">和欣客運</option>
-                    <option value="freego">建明客運 (飛狗)</option>
-                    <option value="RuiyiTransportation">睿奕交通</option>
+                    <option value="SanChung">三重客運</option>
+                    <option value="ZhinanBus">指南客運</option>
+                    <option value="ChampionTransportation">金台客運</option>
+                    <option value="Jet-ChenBus">捷乘客運</option>
                 </optgroup>
-                <optgroup label="彰化縣">
-                    <option value="ChanghuaBus">彰化客運</option>
-                    <option value="YuanLinBus">員林客運</option>
+                 <optgroup label="新竹/苗栗">
+                  <option value="HsinchuBus">新竹客運</option>
+                  <option value="KuoKuang">國光客運</option>
+                  <option value="ChampionTransportation">金牌客運</option>
+                  <option value="YosemiteBus">科技之星</option>
+                  <option value="MiaoLi">苗栗客運</option>
+                  <option value="Jet-ChenBus">捷乘客運</option>
+                  <option value="Yi-JetTechIntegration">亦捷科際</option>
+                  <option value="FengyuanBus">豐原客運</option>
                 </optgroup>
-                <optgroup label="南投縣">
-                    <option value="NANTOUBUS">南投客運</option>
-                    <option value="goto307">杉林溪客運</option>
-                    <option value="GreenTransit">豐榮客運</option>
+                <optgroup label="臺中市各業者">
+                  <option value="TaichungBus">臺中客運</option>
+                  <option value="UnitedBus">統聯客運</option>
+                  <option value="GeyaBus">巨業交通</option>
+                  <option value="ChuanHang">全航客運</option>
+                  <option value="FengyuanBus">豐原客運</option>
+                  <option value="southeastBus">東南客運</option>
+                  <option value="MiaoLiBus">苗栗客運</option>
+                  <option value="UnitedBus1">中台灣客運</option>
+                  <option value="HO-HSINBus">和欣客運</option>
+                  <option value="Chung-LuBus">中鹿客運</option>
+                  <option value="AllDayBus">總達客運</option>
+                  <option value="KuoKuang">國光客運</option>
+                  <option value="freego">建明客運</option>
+                  <option value="RuiyiTransportation">睿奕交通</option>
                 </optgroup>
-                <optgroup label="雲林縣">
-                    <option value="taisibus">台西客運</option>
-                    <option value="YunlinBus">雲林客運</option>
-                    <option value="SOLARbus">日統客運</option>
+                <optgroup label="彰化">
+                  <option value="ChanghuaBus">彰化客運</option>
+                  <option value="YuanLinBus">員林客運</option>
+                  <option value="Chung-LuBus">中鹿客運</option>
+                  <option value="TaichungBus">臺中客運</option>
+                  <option value="GeyaBus">巨業交通</option>
+                  <option value="taisibus">台西客運</option>
+                  <option value="UnitedBus">統聯客運</option>
+                  <option value="KuoKuang">國光客運</option>
+                  <option value="NANTOUBUS">南投客運</option>
                 </optgroup>
-                <optgroup label="嘉義縣/市">
-                    <option value="ChiayiBus">嘉義客運</option>
-                    <option value="ChiayiCountyBus">嘉義縣公車處</option>
-                    <option value="AlishanBus">阿里山客運</option>
+                <optgroup label="南投">
+                  <option value="NANTOUBUS">南投客運</option>
+                  <option value="ChanghuaBus">彰化客運</option>
+                  <option value="YuanLinBus">員林客運</option>
+                  <option value="AllDayBus">總達客運</option>
+                  <option value="TaichungBus">臺中客運</option>
+                  <option value="goto307">杉林溪客運</option>
+                  <option value="GreenTransit">豐榮客運</option>
+                  <option value="ChuanHang">全航客運</option>
+                  <option value="UnitedBus">統聯客運</option>
                 </optgroup>
-                <optgroup label="臺南市">
-                    <option value="TainanBus">府城客運</option>
-                    <option value="SinhuaBus">興南客運</option>
-                    <option value="SingingBus">新營客運</option>
+                <optgroup label="雲林">
+                  <option value="taisibus">台西客運</option>
+                  <option value="YunlinBus">雲林客運</option>
+                  <option value="SOLARbus">日統客運</option>
+                  <option value="ChiayiBus">嘉義客運</option>
+                  <option value="UnitedBus">統聯客運</option>
                 </optgroup>
-                <optgroup label="高雄市">
-                    <option value="KaohsiungBus">高雄客運</option>
-                    <option value="SouthTaiwanBus">南臺灣客運</option>
-                    <option value="GreatCityLifeBus">港都客運</option>
-                    <option value="Han-ChengBus">漢程客運</option>
-                    <option value="E-DaBus">義大客運</option>
+                <optgroup label="嘉義">
+                  <option value="ChiayiCountyBus">嘉義縣公車處</option>
+                  <option value="ChiayiBus">嘉義客運</option>
+                  <option value="taisibus">台西客運</option>
+                  <option value="YunlinBus">雲林客運</option>
+                  <option value="AlishanBus">阿里山客運</option>
+                  <option value="HO-HSINBus">和欣客運</option>
+                  <option value="KuoKuang">國光客運</option>
+                  <option value="Jet-ChenBus">捷乘客運</option>
                 </optgroup>
-                <optgroup label="屏東縣">
-                    <option value="PingTungBus">屏東客運</option>
+                <optgroup label="臺南">
+                  <option value="SinhuaBus">興南客運</option>
+                  <option value="SingingBus">新營客運</option>
+                  <option value="TainanBus">府城客運</option>
+                  <option value="Han-ChengBus">漢程客運</option>
+                  <option value="GeyaBus">巨業交通</option>
+                  <option value="UnitedBus">統聯客運</option>
                 </optgroup>
-                <optgroup label="宜蘭縣">
-                    <option value="KamalanBus">葛瑪蘭客運</option>
+                <optgroup label="高雄">
+                  <option value="KaohsiungBus">高雄客運</option>
+                  <option value="SouthTaiwanBus">南臺灣客運</option>
+                  <option value="Han-ChengBus">漢程客運</option>
+                  <option value="GreatCityLifeBus">港都客運</option>
+                  <option value="E-DaBus">義大客運</option>
+                  <option value="UnitedBus">統聯客運</option>
+                  <option value="southeastBus">東南客運</option>
                 </optgroup>
-                <optgroup label="花蓮縣">
-                    <option value="TarokoBus">太魯閣客運</option>
-                    <option value="hopelandbus">華聯客運</option>
+                <optgroup label="屏東">
+                  <option value="PingTungBus">屏東客運</option>
+                  <option value="KaohsiungBus">高雄客運</option>
+                  <option value="Jet-ChenBus">捷乘客運</option>
                 </optgroup>
-                <optgroup label="臺東縣">
-                    <option value="EasternTopTransportation">東台灣客運</option>
-                    <option value="DiingDongBus">鼎東客運</option>
-                    <option value="ShingDongBus">興東客運</option>
-                    <option value="PuyumaTransportation">普悠瑪客運</option>
+                <optgroup label="東部縣市">
+                  <option value="MetropolitanTransport">大都會客運</option>
+                  <option value="CapitalBus">首都客運</option>
+                  <option value="KamalanBus">葛瑪蘭客運</option>
+                  <option value="KuoKuang">國光客運</option>
+                  <option value="TarokoBus">太魯閣客運</option>
+                  <option value="hopelandbus">華聯客運</option>
+                  <option value="UnitedBus">統聯客運</option>
+                  <option value="DiingDongBus">鼎東客運</option>
+                  <option value="ShingDongBus">興東客運</option>
+                  <option value="PuyumaTransportation">普悠瑪客運</option>
+                  <option value="EasternTopTransportation">東台灣客運</option>
                 </optgroup>
-                <optgroup label="澎湖縣">
-                    <option value="phpto">澎湖縣公車處</option>
-                </optgroup>
-                <optgroup label="金門縣">
-                    <option value="Kinmen">金門縣公共車船管理處</option>
-                </optgroup>
-                <optgroup label="連江縣 (馬祖)">
-                    <option value="matsuebus">連江縣公共車船管理處</option>
+                 <optgroup label="離島">
+                  <option value="phpto">澎湖縣公車處</option>
+                  <option value="matsuebus">連江縣公共車船管理處</option>
+                  <option value="Kinmen">金門縣公共車船管理處</option>
                 </optgroup>
                 <optgroup label="其他/跨區">
-                    <option value="TailianBus">台聯客運</option>
                     <option value="Other">其他業者</option>
                 </optgroup>
             </select>
