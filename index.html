@@ -497,6 +497,10 @@
   <hr style="margin: 30px 0; border: 0; border-top: 1px solid #e5e7eb;">
 
   <h2>紀錄清單</h2>
+  <div style="margin-bottom: 10px; display: flex; align-items: center;">
+    <input type="checkbox" id="showAllData" onchange="toggleDataView()" style="width: 20px; height: 20px; margin-right: 10px;">
+    <label for="showAllData" style="margin: 0; cursor: pointer; color: #2563eb;">🌏 顯示所有人的紀錄 (社群模式)</label>
+</div>
   <div class="search-box">
       <span class="search-icon">🔍</span>
       <input type="text" id="tableSearch" placeholder="搜尋紀錄... (輸入車號、路線或業者)" onkeyup="filterTable()">
@@ -504,13 +508,13 @@
   
   <div class="table-responsive">
       <table border="1" id="recordTable">
-        <thead>
-          <tr>
-            <th>時間</th><th>星期</th><th>客運業者</th>
-            <th>車廠</th><th>路線</th><th>車號</th>
-            <th>車型</th><th>備註</th>
-          </tr>
-        </thead>
+      <thead>
+        <tr>
+          <th>使用者</th> <th>時間</th><th>星期</th><th>客運業者</th>
+          <th>車廠</th><th>路線</th><th>車號</th>
+          <th>車型</th><th>備註</th>
+        </tr>
+      </thead>
         <tbody></tbody>
       </table>
   </div>
@@ -723,10 +727,75 @@ document.addEventListener('DOMContentLoaded', function() {
     updateTimestamp();
 });
 
-function updateManufacturer(operatorValue) {
-    const manuSelect = document.getElementById("manufacturer");
-    manuSelect.innerHTML = "";
-    
+function loadRecords(uid) {
+    const showAll = document.getElementById("showAllData")?.checked;
+    let query = db.collection("busRecords");
+    if (!showAll) {
+        query = query.where("userId", "==", uid);
+    }
+    query.orderBy("timestamp", "desc").limit(200).onSnapshot(snapshot => {
+        const tbody = document.getElementById("recordTable").querySelector("tbody");
+        tbody.innerHTML = "";
+        globalRecords = [];
+        
+        snapshot.docs.forEach(doc => {
+            const r = doc.data();
+            // 如果是別人的資料，雖然不能編輯，但可以存下來做統計
+            // 我們把 doc.id 存入，但之後編輯按鈕會判斷權限
+            r.id = doc.id; 
+            globalRecords.push(r);
+            
+            const row = tbody.insertRow(-1);
+            
+            // 顯示名稱處理
+            const opName = OPERATOR_NAMES[r.operator] || r.operator;
+            const busTypeName = BUSTYPE_NAMES[r.busType] || r.busType;
+            
+            // 時間格式化
+            const ts = r.timestamp ? r.timestamp.toDate().toLocaleString('zh-TW', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: 'numeric', minute: '2-digit', second: '2-digit',
+                hour12: true
+            }) : 'N/A';
+            
+            // 處理使用者名稱顯示 (舊資料沒有 userEmail，顯示 '未知/舊資料')
+            // 為了隱私，你可以只顯示 Email 的前段，這裡示範顯示完整 Email
+            const displayUser = r.userEmail || "未知/舊資料";
+            
+            // 判斷是否為自己的資料 (用來決定是否加粗顯示)
+            const isMine = (r.userId === uid);
+            const userStyle = isMine ? "font-weight:bold; color:#2563eb;" : "color:#6b7280;";
+
+            row.innerHTML = `
+                <td style="${userStyle}">${isMine ? "👤 我" : displayUser}</td>
+                <td>${ts}</td>
+                <td>${r.weekday}</td>
+                <td>${opName}</td>
+                <td>${r.manufacturer || '-'}</td>
+                <td>${r.routeCode || '-'}</td>
+                <td><b>${r.busNumber}</b></td>
+                <td>${busTypeName}</td>
+                <td style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.note}</td>
+            `;
+            
+            // 只有自己的資料可以點擊編輯
+            if (isMine) {
+                row.onclick = () => loadToForm(doc.id, r);
+                row.style.cursor = "pointer";
+            } else {
+                row.style.cursor = "default";
+            }
+        });
+    });
+}
+
+// 新增切換功能的函式
+function toggleDataView() {
+    const user = auth.currentUser;
+    if (user) {
+        loadRecords(user.uid); // 重新載入資料
+    }
+}
     const stations = operatorToManufacturer[operatorValue];
     
     if (stations) {
@@ -1058,6 +1127,7 @@ async function processImport(data) {
             const docRef = db.collection("busRecords").doc();
             batch.set(docRef, {
                 userId: user.uid,
+                userEmail: user.email,
                 timestamp: firebase.firestore.Timestamp.fromDate(importTime),
                 weekday: weekday, // 自動重算星期
                 operator: r['客運業者'] || r['客運'] || "Other",
