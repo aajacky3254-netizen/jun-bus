@@ -1001,6 +1001,13 @@ function toggleDataView() {
         loadRecords(user.uid); // 重新載入資料
     }
 }
+// 判斷這筆資料是不是我自己的
+const isMine = (r.userId === uid);
+
+// 如果是自己顯示「👤 我」
+// 如果是別人，嘗試顯示 r.userEmail
+// 如果 r.userEmail 不存在 (舊資料)，就顯示 "未知/舊資料"
+const displayUser = isMine ? "👤 我" : (r.userEmail || "未知/舊資料");
 
 // --- 6. 表格搜尋功能 ---
 function filterTable() {
