@@ -21,6 +21,7 @@
       background-color: #f9fafb;
       margin: 20px;
       touch-action: manipulation;
+      padding-bottom: 20px;
     }
 
     h1 {
@@ -292,6 +293,13 @@
     </div>
     <div id="userInfo" style="display:none;">
       <p style="font-size: 1.1em;">歡迎回來，<span id="userEmail" style="font-weight: bold; color: #2563eb;"></span></p>
+      
+      <div style="margin-bottom: 15px; padding: 10px; background-color: #f3f4f6; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+          <label style="margin:0; min-width:80px;">設定顯示暱稱:</label>
+          <input type="text" id="nicknameInput" placeholder="輸入您的中文名稱 (例: 小明)" style="flex: 1; min-width: 150px; padding: 8px;">
+          <button type="button" class="btn-purple" onclick="updateProfileName()" style="margin:0;">更新</button>
+      </div>
+      
       <button type="button" class="btn-gray" onclick="logout()">登出</button>
     </div>
   </div>
@@ -553,6 +561,10 @@
     </div>
   </div>
 
+  <footer style="text-align: center; margin-top: 40px; margin-bottom: 20px; color: #9ca3af; font-size: 0.85em;">
+    系統更新時間：2025/01/17
+  </footer>
+
 <script>
 // --- 1. Firebase 初始化 ---
 const firebaseConfig = {
@@ -769,6 +781,10 @@ function updateTimestamp() {
 auth.onAuthStateChanged(user => {
     if (user) {
         document.getElementById("userEmail").textContent = user.email;
+        // 🌟 自動帶入目前暱稱到輸入框
+        if(user.displayName) {
+             document.getElementById("nicknameInput").value = user.displayName;
+        }
         document.getElementById("loginForm").style.display = "none";
         document.getElementById("userInfo").style.display = "block";
         loadRecords(user.uid);
@@ -800,6 +816,27 @@ async function signup() {
 
 function logout() { auth.signOut(); showToast('info', '已登出'); }
 
+// 🌟 新增：更新暱稱函式
+async function updateProfileName() {
+    const user = auth.currentUser;
+    if(!user) return;
+    const name = document.getElementById("nicknameInput").value.trim();
+    if(!name) return showToast('warning', '請輸入暱稱');
+    
+    toggleLoading(true);
+    try {
+        await user.updateProfile({ displayName: name });
+        showToast('success', '暱稱已更新為: ' + name);
+        // 更新完重新整理資料顯示
+        loadRecords(user.uid);
+    } catch(e) {
+        console.error(e);
+        showToast('error', '更新失敗');
+    } finally {
+        toggleLoading(false);
+    }
+}
+
 // --- 5. 資料操作 CRUD ---
 
 // 儲存資料
@@ -820,8 +857,9 @@ async function saveData() {
     try {
         const data = {
             userId: user.uid,
-            // 🌟 新增：儲存使用者 Email，以便社群顯示
             userEmail: user.email,
+            // 🌟 新增：儲存當下的暱稱，如果沒有就存 Email 前綴
+            userName: user.displayName || user.email.split('@')[0],
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             weekday: document.getElementById("weekday").value,
             operator: op, manufacturer: manu, routeCode: route,
@@ -927,20 +965,15 @@ function resetForm() {
     updateTimestamp();
 }
 
-// 🌟 核心修改：載入資料列表 (支援社群模式)
+// 🌟 核心修改：載入資料列表 (支援暱稱顯示)
 function loadRecords(uid) {
-    // 檢查是否勾選 "顯示所有"
     const showAll = document.getElementById("showAllData")?.checked;
-    
     let query = db.collection("busRecords");
 
     if (!showAll) {
-        // 如果沒勾選，就只抓自己的
         query = query.where("userId", "==", uid);
     }
-    // 如果勾選，則不限制 userId，即抓取全部
-
-    // 限制 200 筆避免過載
+    
     query.orderBy("timestamp", "desc").limit(200).onSnapshot(snapshot => {
         const tbody = document.getElementById("recordTable").querySelector("tbody");
         tbody.innerHTML = "";
@@ -952,21 +985,21 @@ function loadRecords(uid) {
             globalRecords.push(r);
             const row = tbody.insertRow(-1);
             
-            // 顯示名稱處理
             const opName = OPERATOR_NAMES[r.operator] || r.operator;
             const busTypeName = BUSTYPE_NAMES[r.busType] || r.busType;
             
-            // 時間格式化
             const ts = r.timestamp ? r.timestamp.toDate().toLocaleString('zh-TW', {
                 year: 'numeric', month: '2-digit', day: '2-digit',
                 hour: 'numeric', minute: '2-digit', second: '2-digit',
                 hour12: true
             }) : 'N/A';
             
-            // 🌟 處理使用者名稱顯示
+            // 🌟 處理顯示名稱：優先顯示 userName (暱稱)，沒有則顯示 Email
             const isMine = (r.userId === uid);
-            // 如果是自己顯示「我」，別人顯示 Email (若舊資料無 Email 顯示未知)
-            const displayUser = isMine ? "👤 我" : (r.userEmail || "未知/舊資料");
+            let nameToShow = r.userName || r.userEmail || "未知";
+            
+            // 如果是自己的資料，加上 "👤 我"
+            const displayUser = isMine ? `👤 ${r.userName || "我"}` : nameToShow;
             const userStyle = isMine ? "font-weight:bold; color:#2563eb;" : "color:#6b7280;";
 
             row.innerHTML = `
@@ -981,7 +1014,6 @@ function loadRecords(uid) {
                 <td style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.note}</td>
             `;
             
-            // 🌟 權限控制：只有自己的資料可以點擊編輯
             if (isMine) {
                 row.onclick = () => loadToForm(doc.id, r);
                 row.style.cursor = "pointer";
@@ -994,20 +1026,12 @@ function loadRecords(uid) {
     });
 }
 
-// 🌟 新增：切換檢視模式
 function toggleDataView() {
     const user = auth.currentUser;
     if (user) {
-        loadRecords(user.uid); // 重新載入資料
+        loadRecords(user.uid);
     }
 }
-// 判斷這筆資料是不是我自己的
-const isMine = (r.userId === uid);
-
-// 如果是自己顯示「👤 我」
-// 如果是別人，嘗試顯示 r.userEmail
-// 如果 r.userEmail 不存在 (舊資料)，就顯示 "未知/舊資料"
-const displayUser = isMine ? "👤 我" : (r.userEmail || "未知/舊資料");
 
 // --- 6. 表格搜尋功能 ---
 function filterTable() {
@@ -1031,28 +1055,18 @@ function filterTable() {
 // --- 7. 匯出/匯入/統計 ---
 function exportCSV() {
     if(globalRecords.length===0) return showToast('info', '無資料可匯出');
-    
     const data = globalRecords.map(r => ({
         "時間": r.timestamp ? r.timestamp.toDate().toLocaleString('zh-TW', {
             year: 'numeric', month: '2-digit', day: '2-digit',
             hour: 'numeric', minute: '2-digit', second: '2-digit',
             hour12: true
         }) : "",
-        "星期": r.weekday,
-        
-        // 🌟 修改這裡：原本是 r.operator，改成查表顯示中文
+        "星期": r.weekday, 
+        // 🌟 匯出時也顯示中文客運名稱
         "客運": OPERATOR_NAMES[r.operator] || r.operator, 
-        
         "車廠": r.manufacturer,
-        "路線": r.routeCode, 
-        "車號": r.busNumber, 
-        
-        // 車型原本已經有查表了，保持原樣
-        "車型": BUSTYPE_NAMES[r.busType] || r.busType, 
-        
-        "備註": r.note
+        "路線": r.routeCode, "車號": r.busNumber, "車型": BUSTYPE_NAMES[r.busType]||r.busType, "備註": r.note
     }));
-
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(data);
     XLSX.utils.book_append_sheet(wb, ws, "Records");
@@ -1071,21 +1085,14 @@ function handleFileSelect(input) {
     r.readAsArrayBuffer(f);
 }
 
-// --- 新增：日期解析函式 ---
 function parseImportTime(val) {
-    if (!val) return new Date(); // 無值則回傳現在
-    if (val instanceof Date) return val; // 已經是 Date 物件
-    
-    // 處理 Excel 數字序列值 (例如 45200.123)
+    if (!val) return new Date();
+    if (val instanceof Date) return val;
     if (typeof val === 'number') {
-        // Excel base date is 1899-12-30. JS is 1970-01-01. Diff is 25569 days.
         return new Date(Math.round((val - 25569) * 86400 * 1000));
     }
-    
     if (typeof val === 'string') {
-        // 嘗試處理 "2025/12/13 上午8:57:30" 這種中文格式
         if (val.includes("上午") || val.includes("下午")) {
-            // Regex 解析 YYYY/MM/DD (上午/下午)H:MM:SS
             const parts = val.match(/(\d+)\/(\d+)\/(\d+)\s+(上午|下午)(\d+):(\d+):(\d+)/);
             if (parts) {
                let [_, y, m, d, ap, h, min, s] = parts;
@@ -1095,11 +1102,10 @@ function parseImportTime(val) {
                return new Date(y, m-1, d, h, min, s);
             }
         }
-        // 嘗試標準格式 (ISO or standard string)
         const d = new Date(val);
         if (!isNaN(d.getTime())) return d;
     }
-    return new Date(); // 解析失敗預設回傳現在
+    return new Date();
 }
 
 async function processImport(data) {
@@ -1107,13 +1113,11 @@ async function processImport(data) {
     toggleLoading(true);
     let count = 0;
     try {
-        const batchSize = 500; // Firestore batch limit
+        const batchSize = 500;
         let batch = db.batch();
         
         for(let i=0; i<data.length; i++) {
             const r = data[i];
-            
-            // 修正：使用解析函式處理時間，而非直接用 now()
             const importTime = parseImportTime(r['時間'] || r['時間戳記']);
             const w = ["日","一","二","三","四","五","六"];
             const weekday = "星期" + w[importTime.getDay()];
@@ -1121,9 +1125,11 @@ async function processImport(data) {
             const docRef = db.collection("busRecords").doc();
             batch.set(docRef, {
                 userId: user.uid,
-                userEmail: user.email, // 匯入時也記錄 Email
+                userEmail: user.email,
+                // 🌟 匯入時也盡量存入暱稱
+                userName: user.displayName || user.email.split('@')[0],
                 timestamp: firebase.firestore.Timestamp.fromDate(importTime),
-                weekday: weekday, // 自動重算星期
+                weekday: weekday,
                 operator: r['客運業者'] || r['客運'] || "Other",
                 manufacturer: r['車廠'] || "",
                 routeCode: String(r['路線碼'] || r['路線'] || ""),
@@ -1140,12 +1146,10 @@ async function processImport(data) {
     finally { toggleLoading(false); }
 }
 
-// 顯示統計 (使用 Chart.js)
 function showStats() {
     if(globalRecords.length===0) return showToast('info', '目前沒有資料');
     document.getElementById("statsModal").style.display = "block";
     
-    // 計算數據
     document.getElementById("statTotal").textContent = globalRecords.length;
     document.getElementById("statUnique").textContent = new Set(globalRecords.map(r=>r.busNumber)).size;
 
@@ -1160,20 +1164,17 @@ function showStats() {
         routeCounts[rt] = (routeCounts[rt] || 0) + 1;
     });
 
-    // 繪製圖表
     renderChart('operatorChart', '客運搭乘分佈', opCounts, 'pie');
     renderChart('routeChart', '最常搭的路線 (Top 10)', routeCounts, 'bar');
 }
 
 function renderChart(canvasId, label, dataObj, type) {
     const ctx = document.getElementById(canvasId).getContext('2d');
-    
-    // 排序並取 Top 10
     const sortedData = Object.entries(dataObj).sort((a,b)=>b[1]-a[1]).slice(0, 10);
     const labels = sortedData.map(d => d[0]);
     const values = sortedData.map(d => d[1]);
 
-    if(charts[canvasId]) charts[canvasId].destroy(); // 銷毀舊圖表
+    if(charts[canvasId]) charts[canvasId].destroy();
 
     charts[canvasId] = new Chart(ctx, {
         type: type,
@@ -1194,7 +1195,7 @@ function renderChart(canvasId, label, dataObj, type) {
             maintainAspectRatio: false,
             plugins: {
                 title: { display: true, text: label, font: {size: 16} },
-                legend: { display: type === 'pie' } // 長條圖不顯示圖例
+                legend: { display: type === 'pie' }
             }
         }
     });
@@ -1202,7 +1203,6 @@ function renderChart(canvasId, label, dataObj, type) {
 
 function closeStats() { document.getElementById("statsModal").style.display="none"; }
 
-// --- 新增：車號統計列表 JS 邏輯 ---
 function showBusStats() {
     if(globalRecords.length===0) return showToast('info', '目前沒有資料');
     document.getElementById("busStatsModal").style.display = "block";
@@ -1222,7 +1222,6 @@ function showBusStats() {
     const tbody = document.getElementById("busListBody");
     tbody.innerHTML = "";
     
-    // Sort A-Z
     Object.keys(busMap).sort().forEach(num => {
         const item = busMap[num];
         const row = `<tr>
@@ -1236,6 +1235,7 @@ function showBusStats() {
 function closeBusStats() { document.getElementById("busStatsModal").style.display = "none"; }
 
 window.onclick = e => { if(e.target.className==="modal") e.target.style.display="none"; }
+
 </script>
 </body>
 </html>
