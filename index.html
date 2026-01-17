@@ -1169,26 +1169,61 @@ async function processImport(data) {
     finally { toggleLoading(false); }
 }
 
-function showStats() {
-    if(globalRecords.length===0) return showToast('info', '目前沒有資料');
-    document.getElementById("statsModal").style.display = "block";
-    
-    document.getElementById("statTotal").textContent = globalRecords.length;
-    document.getElementById("statUnique").textContent = new Set(globalRecords.map(r=>r.busNumber)).size;
+// 🌟 新增 Helper：取得完整統計資料
+async function getFullDataForStats() {
+    // 1. 如果 useLimit 為 false，代表列表已經載入全部，直接用 (最快)
+    if (!useLimit && globalRecords.length > 0) return globalRecords;
 
-    const opCounts = {};
-    const routeCounts = {};
+    // 2. 如果列表只有部分資料，則必須去雲端抓一次完整的 (確保統計正確)
+    const showAll = document.getElementById("showAllData")?.checked;
+    const user = auth.currentUser;
+    if (!user && !showAll) return [];
+
+    let query = db.collection("busRecords");
+    if (!showAll) query = query.where("userId", "==", user.uid);
     
-    globalRecords.forEach(r => {
-        const op = OPERATOR_NAMES[r.operator] || r.operator;
-        opCounts[op] = (opCounts[op] || 0) + 1;
+    // 使用 .get() 抓取完整快照 (不排序以加速)
+    const snapshot = await query.get();
+    const data = [];
+    snapshot.forEach(doc => data.push(doc.data()));
+    return data;
+}
+
+// 🌟 修改：支援自動全量統計 (圖表)
+async function showStats() {
+    toggleLoading(true);
+    try {
+        const sourceData = await getFullDataForStats();
         
-        const rt = r.routeCode || "未填寫";
-        routeCounts[rt] = (routeCounts[rt] || 0) + 1;
-    });
+        if(sourceData.length===0) {
+            toggleLoading(false);
+            return showToast('info', '目前沒有資料');
+        }
+        
+        document.getElementById("statsModal").style.display = "block";
+        
+        document.getElementById("statTotal").textContent = sourceData.length;
+        document.getElementById("statUnique").textContent = new Set(sourceData.map(r=>r.busNumber)).size;
 
-    renderChart('operatorChart', '客運搭乘分佈', opCounts, 'pie');
-    renderChart('routeChart', '最常搭的路線 (Top 10)', routeCounts, 'bar');
+        const opCounts = {};
+        const routeCounts = {};
+        
+        sourceData.forEach(r => {
+            const op = OPERATOR_NAMES[r.operator] || r.operator;
+            opCounts[op] = (opCounts[op] || 0) + 1;
+            
+            const rt = r.routeCode || "未填寫";
+            routeCounts[rt] = (routeCounts[rt] || 0) + 1;
+        });
+
+        renderChart('operatorChart', '客運搭乘分佈', opCounts, 'pie');
+        renderChart('routeChart', '最常搭的路線 (Top 10)', routeCounts, 'bar');
+    } catch(e) {
+        console.error(e);
+        showToast('error', '統計讀取失敗');
+    } finally {
+        toggleLoading(false);
+    }
 }
 
 function renderChart(canvasId, label, dataObj, type) {
@@ -1226,34 +1261,49 @@ function renderChart(canvasId, label, dataObj, type) {
 
 function closeStats() { document.getElementById("statsModal").style.display="none"; }
 
-function showBusStats() {
-    if(globalRecords.length===0) return showToast('info', '目前沒有資料');
-    document.getElementById("busStatsModal").style.display = "block";
+// 🌟 修改：支援自動全量統計 (列表)
+async function showBusStats() {
+    toggleLoading(true);
+    try {
+        const sourceData = await getFullDataForStats();
 
-    const busMap = {};
-    globalRecords.forEach(r => {
-        const num = r.busNumber;
-        if(!busMap[num]) {
-            busMap[num] = {
-                count: 0,
-                operator: OPERATOR_NAMES[r.operator] || r.operator
-            };
+        if(sourceData.length===0) {
+            toggleLoading(false);
+            return showToast('info', '目前沒有資料');
         }
-        busMap[num].count++;
-    });
 
-    const tbody = document.getElementById("busListBody");
-    tbody.innerHTML = "";
-    
-    Object.keys(busMap).sort().forEach(num => {
-        const item = busMap[num];
-        const row = `<tr>
-            <td><b>${num}</b></td>
-            <td>${item.count}</td>
-            <td>${item.operator}</td>
-        </tr>`;
-        tbody.innerHTML += row;
-    });
+        document.getElementById("busStatsModal").style.display = "block";
+
+        const busMap = {};
+        sourceData.forEach(r => {
+            const num = r.busNumber;
+            if(!busMap[num]) {
+                busMap[num] = {
+                    count: 0,
+                    operator: OPERATOR_NAMES[r.operator] || r.operator
+                };
+            }
+            busMap[num].count++;
+        });
+
+        const tbody = document.getElementById("busListBody");
+        tbody.innerHTML = "";
+        
+        Object.keys(busMap).sort().forEach(num => {
+            const item = busMap[num];
+            const row = `<tr>
+                <td><b>${num}</b></td>
+                <td>${item.count}</td>
+                <td>${item.operator}</td>
+            </tr>`;
+            tbody.innerHTML += row;
+        });
+    } catch(e) {
+        console.error(e);
+        showToast('error', '統計讀取失敗');
+    } finally {
+        toggleLoading(false);
+    }
 }
 function closeBusStats() { document.getElementById("busStatsModal").style.display = "none"; }
 
