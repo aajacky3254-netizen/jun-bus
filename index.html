@@ -1,7 +1,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>每日搭乘調查 (社群版)</title>
+  <title>每日搭乘調查 (社群完整版)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -504,9 +504,12 @@
   <hr style="margin: 30px 0; border: 0; border-top: 1px solid #e5e7eb;">
 
   <h2>紀錄清單</h2>
-  <div style="margin-bottom: 10px; display: flex; align-items: center;">
-    <input type="checkbox" id="showAllData" onchange="toggleDataView()" style="width: 20px; height: 20px; margin-right: 10px;">
-    <label for="showAllData" style="margin: 0; cursor: pointer; color: #2563eb; font-weight: bold;">🌏 顯示所有人的紀錄 (社群模式)</label>
+  <div style="margin-bottom: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 15px;">
+    <div style="display: flex; align-items: center;">
+        <input type="checkbox" id="showAllData" onchange="toggleDataView()" style="width: 20px; height: 20px; margin-right: 10px;">
+        <label for="showAllData" style="margin: 0; cursor: pointer; color: #2563eb; font-weight: bold;">🌏 顯示所有人的紀錄 (社群模式)</label>
+    </div>
+    <button type="button" onclick="loadAllRecords()" class="btn-blue" style="margin: 0; padding: 6px 12px; font-size: 14px;">📂 載入全部歷史紀錄</button>
   </div>
   
   <div class="search-box">
@@ -584,7 +587,8 @@ const db = firebase.firestore();
 let editDocId = null;
 let globalRecords = [];
 let operatorChoiceInstance = null;
-let charts = {}; // 存放 Chart.js 實例
+let charts = {}; 
+let useLimit = true; // 預設為 true (限制 200 筆)
 
 const OPERATOR_NAMES = {
     "KeelungCity": "基隆市公車處", "KeelungBus": "基隆客運", "CapitalBus": "首都客運", "TaipeiBus": "臺北客運",
@@ -614,7 +618,6 @@ const BUSTYPE_NAMES = {
     "minibus": "小型巴士", "Freewaybusservice": "國道客運", "Other": "其他"
 };
 
-// 簡化的車廠對照表
 const operatorToManufacturer = {
     "TaichungBus": ["霧峰站", "豐原站", "東海站", "高鐵站", "清水站", "沙鹿站", "大甲站", "國道站", "梧棲站"],
     "UnitedBus": ["豐勢站", "清水站", "烏日站", "新福站", "霧峰站", "中科站", "干城站", "光復站", "大園站", "東勇站", "八德站", "平鎮站", "金馬站", "西港站", "竹山站", "斗六站", "北港站", "嘉義站", "永康站", "鼓山站", "羅東站", "花蓮站", "瑞豐站"],
@@ -740,7 +743,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateTimestamp();
 });
 
-// 🌟 車廠更新函式 (之前可能遺漏)
+// 🌟 車廠更新函式
 function updateManufacturer(operatorValue) {
     const manuSelect = document.getElementById("manufacturer");
     manuSelect.innerHTML = "";
@@ -765,7 +768,6 @@ function updateManufacturer(operatorValue) {
 
 function updateTimestamp() {
     const now = new Date();
-    // 修改處：設定時間格式為 YYYY/MM/DD 上午H:MM:SS
     const timeString = now.toLocaleString('zh-TW', {
         year: 'numeric', month: '2-digit', day: '2-digit',
         hour: 'numeric', minute: '2-digit', second: '2-digit',
@@ -781,7 +783,7 @@ function updateTimestamp() {
 auth.onAuthStateChanged(user => {
     if (user) {
         document.getElementById("userEmail").textContent = user.email;
-        // 🌟 自動帶入目前暱稱到輸入框
+        // 🌟 自動帶入目前暱稱
         if(user.displayName) {
              document.getElementById("nicknameInput").value = user.displayName;
         }
@@ -816,7 +818,7 @@ async function signup() {
 
 function logout() { auth.signOut(); showToast('info', '已登出'); }
 
-// 🌟 新增：更新暱稱函式
+// 🌟 更新暱稱
 async function updateProfileName() {
     const user = auth.currentUser;
     if(!user) return;
@@ -827,7 +829,6 @@ async function updateProfileName() {
     try {
         await user.updateProfile({ displayName: name });
         showToast('success', '暱稱已更新為: ' + name);
-        // 更新完重新整理資料顯示
         loadRecords(user.uid);
     } catch(e) {
         console.error(e);
@@ -858,7 +859,7 @@ async function saveData() {
         const data = {
             userId: user.uid,
             userEmail: user.email,
-            // 🌟 新增：儲存當下的暱稱，如果沒有就存 Email 前綴
+            // 🌟 儲存當下的暱稱，沒有則存 Email 前綴
             userName: user.displayName || user.email.split('@')[0],
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             weekday: document.getElementById("weekday").value,
@@ -965,7 +966,7 @@ function resetForm() {
     updateTimestamp();
 }
 
-// 🌟 核心修改：載入資料列表 (支援暱稱顯示)
+// 🌟 核心：載入資料 (支援暱稱 + 載入全部按鈕邏輯)
 function loadRecords(uid) {
     const showAll = document.getElementById("showAllData")?.checked;
     let query = db.collection("busRecords");
@@ -974,7 +975,15 @@ function loadRecords(uid) {
         query = query.where("userId", "==", uid);
     }
     
-    query.orderBy("timestamp", "desc").limit(200).onSnapshot(snapshot => {
+    // 排序
+    query = query.orderBy("timestamp", "desc");
+
+    // 🌟 如果 useLimit 為 true (預設)，只載入前 200 筆
+    if (useLimit) {
+        query = query.limit(200);
+    }
+    
+    query.onSnapshot(snapshot => {
         const tbody = document.getElementById("recordTable").querySelector("tbody");
         tbody.innerHTML = "";
         globalRecords = [];
@@ -994,11 +1003,9 @@ function loadRecords(uid) {
                 hour12: true
             }) : 'N/A';
             
-            // 🌟 處理顯示名稱：優先顯示 userName (暱稱)，沒有則顯示 Email
+            // 🌟 顯示名稱邏輯
             const isMine = (r.userId === uid);
             let nameToShow = r.userName || r.userEmail || "未知";
-            
-            // 如果是自己的資料，加上 "👤 我"
             const displayUser = isMine ? `👤 ${r.userName || "我"}` : nameToShow;
             const userStyle = isMine ? "font-weight:bold; color:#2563eb;" : "color:#6b7280;";
 
@@ -1023,10 +1030,27 @@ function loadRecords(uid) {
                 row.title = "僅供檢視";
             }
         });
+
+        // 提示載入筆數 (選用)
+        if (!useLimit) {
+            console.log(`已載入 ${snapshot.size} 筆歷史資料`);
+        }
     });
 }
 
+// 🌟 點擊按鈕：載入全部
+function loadAllRecords() {
+    useLimit = false; // 解除 200 筆限制
+    const user = auth.currentUser;
+    if (user) {
+        loadRecords(user.uid);
+        showToast('info', '正在從雲端下載所有歷史紀錄...');
+    }
+}
+
+// 🌟 切換開關：重置回 200 筆 (保護效能)
 function toggleDataView() {
+    useLimit = true;
     const user = auth.currentUser;
     if (user) {
         loadRecords(user.uid);
@@ -1062,7 +1086,7 @@ function exportCSV() {
             hour12: true
         }) : "",
         "星期": r.weekday, 
-        // 🌟 匯出時也顯示中文客運名稱
+        // 🌟 匯出使用中文名稱
         "客運": OPERATOR_NAMES[r.operator] || r.operator, 
         "車廠": r.manufacturer,
         "路線": r.routeCode, "車號": r.busNumber, "車型": BUSTYPE_NAMES[r.busType]||r.busType, "備註": r.note
@@ -1126,7 +1150,6 @@ async function processImport(data) {
             batch.set(docRef, {
                 userId: user.uid,
                 userEmail: user.email,
-                // 🌟 匯入時也盡量存入暱稱
                 userName: user.displayName || user.email.split('@')[0],
                 timestamp: firebase.firestore.Timestamp.fromDate(importTime),
                 weekday: weekday,
