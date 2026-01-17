@@ -1031,16 +1031,28 @@ function filterTable() {
 // --- 7. 匯出/匯入/統計 ---
 function exportCSV() {
     if(globalRecords.length===0) return showToast('info', '無資料可匯出');
+    
     const data = globalRecords.map(r => ({
-        // 修改處：匯出格式
         "時間": r.timestamp ? r.timestamp.toDate().toLocaleString('zh-TW', {
             year: 'numeric', month: '2-digit', day: '2-digit',
             hour: 'numeric', minute: '2-digit', second: '2-digit',
             hour12: true
         }) : "",
-        "星期": r.weekday, "客運": r.operator, "車廠": r.manufacturer,
-        "路線": r.routeCode, "車號": r.busNumber, "車型": BUSTYPE_NAMES[r.busType]||r.busType, "備註": r.note
+        "星期": r.weekday,
+        
+        // 🌟 修改這裡：原本是 r.operator，改成查表顯示中文
+        "客運": OPERATOR_NAMES[r.operator] || r.operator, 
+        
+        "車廠": r.manufacturer,
+        "路線": r.routeCode, 
+        "車號": r.busNumber, 
+        
+        // 車型原本已經有查表了，保持原樣
+        "車型": BUSTYPE_NAMES[r.busType] || r.busType, 
+        
+        "備註": r.note
     }));
+
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(data);
     XLSX.utils.book_append_sheet(wb, ws, "Records");
