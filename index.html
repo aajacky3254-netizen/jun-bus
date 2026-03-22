@@ -162,7 +162,8 @@
         <div class="form-group">
             <label>⭐ 搭乘滿意度評分</label>
             <select id="rating" name="rating">
-                <option value="5" selected>⭐⭐⭐⭐⭐ (非常滿意)</option>
+                <option value="" disabled selected>--- 下車後再評分 ---</option>
+                <option value="5">⭐⭐⭐⭐⭐ (非常滿意)</option>
                 <option value="4">⭐⭐⭐⭐ (滿意)</option>
                 <option value="3">⭐⭐⭐ (普通)</option>
                 <option value="2">⭐⭐ (待加強)</option>
@@ -173,7 +174,8 @@
         <div class="form-group">
             <label>🌤️ 當時天氣狀況</label>
             <select id="weather" name="weather">
-                <option value="☀️ 晴天" selected>☀️ 晴天</option>
+                <option value="" disabled selected>--- 尚未記錄 ---</option>
+                <option value="☀️ 晴天">☀️ 晴天</option>
                 <option value="⛅ 多雲">⛅ 多雲</option>
                 <option value="☁️ 陰天">☁️ 陰天</option>
                 <option value="🌧️ 雨天">🌧️ 雨天</option>
@@ -368,7 +370,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             operatorToManufacturer = data.operatorToManufacturer || {};
             busGroups = data.groups || {};
             
-            // 🌟 嚴格依照您要求的順序排列
+            // 🌟 嚴格依照要求的順序排列
             const GROUP_ORDER = [
                 "臺中市各業者", 
                 "基隆/新北/臺北/桃園", 
@@ -398,7 +400,6 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             });
             
-            // 防呆：不在清單上的群組加在後面
             for (const [groupName, opIds] of Object.entries(busGroups)) {
                 if (!GROUP_ORDER.includes(groupName)) {
                     const groupChoices = opIds.map(id => ({ value: id, label: OPERATOR_NAMES[id] || id }));
@@ -594,8 +595,8 @@ async function saveData() {
             routeCode: document.getElementById("routeCode").value,
             busNumber: num.toUpperCase(), 
             busType: type, 
-            rating: document.getElementById("rating").value,
-            weather: document.getElementById("weather").value,
+            rating: document.getElementById("rating").value || "",   // 儲存空值
+            weather: document.getElementById("weather").value || "", // 儲存空值
             note: document.getElementById("note").value
         };
         
@@ -615,8 +616,8 @@ function loadToForm(id, r) {
     document.getElementById("routeCode").value = r.routeCode;
     document.getElementById("busNumber").value = r.busNumber;
     document.getElementById("busType").value = r.busType;
-    document.getElementById("rating").value = r.rating || "5";
-    document.getElementById("weather").value = r.weather || "☀️ 晴天";
+    document.getElementById("rating").value = r.rating || "";   // 沒值就帶空白
+    document.getElementById("weather").value = r.weather || ""; // 沒值就帶空白
     document.getElementById("note").value = r.note;
     
     document.getElementById("btnSave").style.display = "none";
@@ -635,8 +636,8 @@ async function saveEdit() {
             operator: document.getElementById("operator").value, manufacturer: document.getElementById("manufacturer").value,
             routeCode: document.getElementById("routeCode").value, busNumber: document.getElementById("busNumber").value.toUpperCase(),
             busType: document.getElementById("busType").value, 
-            rating: document.getElementById("rating").value,
-            weather: document.getElementById("weather").value,
+            rating: document.getElementById("rating").value || "",
+            weather: document.getElementById("weather").value || "",
             note: document.getElementById("note").value
         });
         showToast('success', '修改成功'); resetForm();
@@ -697,18 +698,20 @@ function loadRecords(uid) {
             const badges = getUserBadges(r.userId, nameToShow); 
             const displayUser = isMine ? `👤 <b>${r.userName || "我"}</b><br>${badges}` : `${nameToShow}<br>${badges}`;
             
-            // 處理評分與天氣顯示
-            const ratingStr = "⭐".repeat(parseInt(r.rating || 5));
-            const weatherStr = r.weather || "☀️ 晴天";
+            // 🌟 處理評分與天氣顯示：若沒有值，顯示未記錄
+            const ratingStr = r.rating ? "⭐".repeat(parseInt(r.rating)) : "⏳ 尚未評分";
+            const weatherStr = r.weather ? r.weather : "⏳ 尚未記錄";
             
-            // 處理備註與附件(GPS)
             let noteHtml = `<div style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.note || ""}</div>`;
             if (r.location) noteHtml += `<a href="http://maps.google.com/maps?q=${r.location.lat},${r.location.lng}" target="_blank" style="display:inline-block; margin-top:5px; padding:2px 6px; background:#3b82f6; color:white; border-radius:4px; text-decoration:none; font-size:12px;">📍 地圖打卡</a>`;
 
             row.innerHTML = `
                 <td>${displayUser}</td><td>${ts}</td><td>${r.weekday}</td><td>${opName}</td>
                 <td>${r.manufacturer || '-'}</td><td>${r.routeCode || '-'}</td><td><b>${r.busNumber}</b></td><td>${busTypeName}</td>
-                <td><div style="color:#f59e0b; font-size:12px;">${ratingStr}</div><div style="font-size:12px; margin-top:4px;">${weatherStr}</div></td>
+                <td>
+                    <div style="color:#f59e0b; font-size:12px;">${ratingStr}</div>
+                    <div style="font-size:12px; margin-top:4px; color:#6b7280;">${weatherStr}</div>
+                </td>
                 <td>${noteHtml}</td>
             `;
             if (isMine) { row.onclick = (e) => { if(e.target.tagName !== 'A') loadToForm(doc.id, r); }; row.style.cursor = "pointer"; } 
@@ -862,7 +865,7 @@ function exportCSV() {
         "時間": r.timestamp?r.timestamp.toDate().toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true}):"", 
         "星期": r.weekday, "客運": OPERATOR_NAMES[r.operator]||r.operator, "車廠": r.manufacturer,
         "路線": r.routeCode, "車號": r.busNumber, "車型": BUSTYPE_NAMES[r.busType]||r.busType,
-        "評分": r.rating || "5", "天氣": r.weather || "☀️ 晴天", "備註": r.note
+        "評分": r.rating || "", "天氣": r.weather || "", "備註": r.note
     }));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Records");
     saveAs(new Blob([XLSX.write(wb,{bookType:'csv',type:'array'})],{type:'text/csv;charset=utf-8;'}), "bus_record.csv");
@@ -897,7 +900,7 @@ async function processImport(data) {
                 timestamp: firebase.firestore.Timestamp.fromDate(importTime), weekday: "星期"+["日","一","二","三","四","五","六"][importTime.getDay()],
                 operator: r['客運業者'] || r['客運'] || "Other", manufacturer: r['車廠'] || "", routeCode: String(r['路線碼'] || r['路線'] || ""),
                 busNumber: String(r['車號'] || "UNKNOWN").toUpperCase(), busType: r['車型'] || "Other",
-                rating: r['評分'] || "5", weather: r['天氣'] || "☀️ 晴天", note: r['備註'] || "批次匯入"
+                rating: r['評分'] || "", weather: r['天氣'] || "", note: r['備註'] || "批次匯入"
             });
             count++; if(count % 500 === 0) { await batch.commit(); batch = db.batch(); }
         }
