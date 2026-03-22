@@ -1,11 +1,13 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>每日搭乘調查 (社群完整版)</title>
+  <title>每日搭乘調查 (動態資料庫版)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
@@ -16,270 +18,76 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
-    body {
-      font-family: "Microsoft JhengHei", Arial, sans-serif;
-      background-color: #f9fafb;
-      margin: 20px;
-      touch-action: manipulation;
-      padding-bottom: 20px;
-    }
-
-    h1 {
-      color: #2563eb;
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    /* 裝置標籤樣式 */
-    #deviceTag {
-        font-size: 0.6em;
-        padding: 5px 10px;
-        border-radius: 15px;
-        color: white;
-        background-color: #6b7280;
-        vertical-align: middle;
-    }
-
-    .form-group {
-      margin-bottom: 15px;
-    }
-
-    label {
-      font-weight: 600;
-      color: #374151;
-      display: block;
-      margin-bottom: 5px;
-    }
-
-    input, select, textarea {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      transition: border-color 0.2s;
-      box-sizing: border-box; 
-      font-size: 16px;
-    }
-
-    textarea {
-        min-height: 100px;
-        resize: vertical;
-    }
-
-    input:focus, select:focus, textarea:focus {
-      border-color: #2563eb;
-      outline: none;
-    }
-
-    /* Choices.js 修正樣式 */
-    .choices__inner {
-        background-color: #fff;
-        border-radius: 8px;
-        min-height: 44px;
-    }
-
-    /* 按鈕樣式 */
-    button {
-      color: white !important;
-      border: none;
-      border-radius: 8px;
-      padding: 12px 16px;
-      margin-right: 8px;
-      margin-bottom: 10px;
-      cursor: pointer;
-      font-size: 15px;
-      font-weight: 500;
-      transition: all 0.2s;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-    }
+    body { font-family: "Microsoft JhengHei", Arial, sans-serif; background-color: #f9fafb; margin: 20px; touch-action: manipulation; padding-bottom: 20px;}
+    h1 { color: #2563eb; margin-bottom: 20px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    #deviceTag { font-size: 0.6em; padding: 5px 10px; border-radius: 15px; color: white; background-color: #6b7280; vertical-align: middle; }
+    .form-group { margin-bottom: 15px; }
+    label { font-weight: 600; color: #374151; display: block; margin-bottom: 5px; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; transition: border-color 0.2s; box-sizing: border-box; font-size: 16px; }
+    textarea { min-height: 80px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: #2563eb; outline: none; }
+    .choices__inner { background-color: #fff; border-radius: 8px; min-height: 44px; }
     
-    button:hover {
-        filter: brightness(90%);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.15);
-    }
+    button { color: white !important; border: none; border-radius: 8px; padding: 12px 16px; margin-right: 8px; margin-bottom: 10px; cursor: pointer; font-size: 15px; font-weight: 500; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+    button:hover { filter: brightness(90%); transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.15); }
+    button:active { transform: translateY(0); }
+    button:disabled { background-color: #9ca3af !important; cursor: not-allowed; transform: none; }
+    .btn-blue { background-color: #2563eb !important; } .btn-orange { background-color: #f97316 !important; } .btn-red { background-color: #dc2626 !important; } .btn-purple { background-color: #7c3aed !important; } .btn-green { background-color: #059669 !important; } .btn-gray { background-color: #4b5563 !important; } .btn-gold { background-color: #eab308 !important; color: #fff !important;} .btn-pink { background-color: #ec4899 !important; }
     
-    button:active {
-        transform: translateY(0);
-    }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    table th, table td { padding: 10px; border: 1px solid #d1d5db; text-align: center; font-size: 14px; }
+    table th { background-color: #e5e7eb; position: sticky; top: 0; z-index: 10; }
+    table tbody tr:nth-child(even) { background-color: #f3f4f6; }
+    table tbody tr:hover { background-color: #e0f2fe; }
+    .table-responsive { width: 100%; overflow-x: auto; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-height: 600px; overflow-y: auto; }
     
-    button:disabled {
-        background-color: #9ca3af !important;
-        cursor: not-allowed;
-        transform: none;
-    }
-
-    .btn-blue { background-color: #2563eb !important; }
-    .btn-orange { background-color: #f97316 !important; }
-    .btn-red { background-color: #dc2626 !important; }
-    .btn-purple { background-color: #7c3aed !important; }
-    .btn-green { background-color: #059669 !important; }
-    .btn-gray { background-color: #4b5563 !important; }
-
-    /* 表格樣式 */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-
-    table th, table td {
-      padding: 10px;
-      border: 1px solid #d1d5db;
-      text-align: center;
-      font-size: 14px;
-    }
+    .search-box { position: relative; flex: 1; min-width: 250px; }
+    .search-box input { padding-left: 35px; border: 2px solid #e5e7eb; margin: 0; }
+    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #9ca3af; }
     
-    table th {
-        background-color: #e5e7eb;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-    }
-
-    table tbody tr:nth-child(even) {
-      background-color: #f3f4f6;
-    }
+    .form-container { display: block; }
+    .button-group { display: flex; flex-direction: column; gap: 8px; }
+    .button-group button { width: 100%; margin-right: 0; }
     
-    table tbody tr:hover {
-        background-color: #e0f2fe; /* 滑鼠懸停效果 */
-    }
-    
-    .table-responsive {
-        width: 100%;
-        overflow-x: auto;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        max-height: 500px; /* 限制高度讓標題固定 */
-        overflow-y: auto;
-    }
-
-    /* 搜尋框樣式 */
-    .search-box {
-        position: relative;
-        margin-bottom: 10px;
-    }
-    .search-box input {
-        padding-left: 35px;
-        border: 2px solid #e5e7eb;
-    }
-    .search-icon {
-        position: absolute;
-        left: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: #9ca3af;
-    }
-
-    /* 響應式佈局 */
-    .form-container {
-        display: block;
-    }
-    .button-group {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-    .button-group button {
-        width: 100%;
-        margin-right: 0;
-    }
-
     @media (min-width: 768px) {
-        .form-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        .full-width {
-            grid-column: span 2;
-        }
-        .button-group {
-            flex-direction: row;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .button-group button {
-            width: auto;
-            margin-right: 10px;
-        }
+        .form-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .full-width { grid-column: span 2; }
+        .button-group { flex-direction: row; flex-wrap: wrap; align-items: center; }
+        .button-group button { width: auto; margin-right: 10px; }
     }
-
-    /* Modal 樣式 */
-    .modal {
-        display: none; 
-        position: fixed; 
-        z-index: 1000; 
-        left: 0;
-        top: 0;
-        width: 100%; 
-        height: 100%; 
-        overflow: auto; 
-        background-color: rgba(0,0,0,0.5); 
-        backdrop-filter: blur(2px);
-    }
-
-    .modal-content {
-        background-color: #fefefe;
-        margin: 5% auto; 
-        padding: 25px;
-        border: 1px solid #888;
-        width: 90%; 
-        max-width: 700px;
-        border-radius: 12px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    }
-    .close-btn { float: right; font-size: 28px; cursor: pointer; color: #6b7280; }
     
-    .chart-container {
-        position: relative;
-        height: 300px;
-        width: 100%;
-        margin-bottom: 20px;
-    }
-
-    /* Loading Overlay */
-    #loadingOverlay {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(255,255,255,0.8);
-        z-index: 9999;
-        justify-content: center;
-        align-items: center;
-        flex-direction: column;
-    }
-    .spinner {
-        border: 5px solid #f3f3f3;
-        border-top: 5px solid #2563eb;
-        border-radius: 50%;
-        width: 50px;
-        height: 50px;
-        animation: spin 1s linear infinite;
-        margin-bottom: 10px;
-    }
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
+    .modal-content { background-color: #fefefe; margin: 5% auto; padding: 25px; border: 1px solid #888; width: 90%; max-width: 700px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; }
+    .close-btn { float: right; font-size: 28px; cursor: pointer; color: #6b7280; }
+    .chart-container { position: relative; height: 300px; width: 100%; margin-bottom: 30px; }
+    
+    #loadingOverlay { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; }
+    .spinner { border: 5px solid #f3f3f3; border-top: 5px solid #2563eb; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 10px; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
+    /* 年度回顧卡片專屬樣式 */
+    #recapCard { background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: white; padding: 30px; border-radius: 15px; text-align: center; font-family: 'Microsoft JhengHei', sans-serif; position: relative; overflow: hidden; }
+    .recap-title { font-size: 24px; font-weight: bold; margin-bottom: 20px; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+    .recap-stat { font-size: 48px; font-weight: 900; color: #fbbf24; text-shadow: 2px 2px 4px rgba(0,0,0,0.4); margin: 10px 0; }
+    .recap-box { background: rgba(255,255,255,0.1); backdrop-filter: blur(5px); border-radius: 10px; padding: 15px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.2); }
+    .badge { font-size: 0.8em; padding: 3px 6px; background: #fbbf24; color: #78350f; border-radius: 12px; margin-left: 5px; font-weight: bold; box-shadow: 0 1px 2px rgba(0,0,0,0.2);}
+    .badge-night { background: #3730a3; color: #e0e7ff; }
+    .badge-early { background: #fde047; color: #854d0e; }
+    .badge-king { background: #ef4444; color: white; }
   </style>
 </head>
 <body>
 
   <div id="loadingOverlay">
       <div class="spinner"></div>
-      <div style="color: #2563eb; font-weight: bold;">資料處理中...</div>
+      <div style="color: #2563eb; font-weight: bold; font-size:18px;">載入系統資料庫中...</div>
   </div>
 
-  <h1>
-      每日搭乘調查
-      <span id="deviceTag">偵測中...</span>
-  </h1>
+  <div id="systemAnnouncement" style="display:none; background-color: #fef2f2; border-left: 5px solid #dc2626; padding: 10px 15px; margin-bottom: 20px; border-radius: 4px; color: #991b1b; font-weight: bold;">
+      📢 系統公告：<span id="announcementText">載入中...</span>
+  </div>
+
+  <h1>每日搭乘調查 <span id="deviceTag">偵測中...</span></h1>
 
   <div id="authSection" style="margin-bottom: 20px; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
     <h3 style="margin-top: 0; color: #374151;">👤 使用者認證</h3>
@@ -293,13 +101,11 @@
     </div>
     <div id="userInfo" style="display:none;">
       <p style="font-size: 1.1em;">歡迎回來，<span id="userEmail" style="font-weight: bold; color: #2563eb;"></span></p>
-      
       <div style="margin-bottom: 15px; padding: 10px; background-color: #f3f4f6; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
           <label style="margin:0; min-width:80px;">設定顯示暱稱:</label>
           <input type="text" id="nicknameInput" placeholder="輸入您的中文名稱 (例: 小明)" style="flex: 1; min-width: 150px; padding: 8px;">
           <button type="button" class="btn-purple" onclick="updateProfileName()" style="margin:0;">更新</button>
       </div>
-      
       <button type="button" class="btn-gray" onclick="logout()">登出</button>
     </div>
   </div>
@@ -319,134 +125,7 @@
         <div class="form-group full-width">
             <label for="operator">客運業者 (可搜尋)</label>
             <select id="operator" name="operator" required>
-                <option value="" disabled selected>--- 請選擇客運業者 ---</option>
-                <optgroup label="臺中市各業者">
-                  <option value="TaichungBus">臺中客運</option>
-                  <option value="UnitedBus">統聯客運</option>
-                  <option value="GeyaBus">巨業交通</option>
-                  <option value="ChuanHang">全航客運</option>
-                  <option value="FengyuanBus">豐原客運</option>
-                  <option value="southeastBus">東南客運</option>
-                  <option value="MiaoLiBus">苗栗客運</option>
-                  <option value="UnitedBus1">中台灣客運</option>
-                  <option value="HO-HSINBus">和欣客運</option>
-                  <option value="Chung-LuBus">中鹿客運</option>
-                  <option value="AllDayBus">總達客運</option>
-                  <option value="KuoKuang">國光客運</option>
-                  <option value="freego">建明客運</option>
-                  <option value="RuiyiTransportation">睿奕交通</option>
-                </optgroup>
-                <optgroup label="基隆/新北/臺北/桃園">
-                    <option value="KeelungCity">基隆市公車處</option>
-                    <option value="KeelungBus">基隆客運</option>
-                    <option value="CapitalBus">首都客運</option>
-                    <option value="TaipeiBus">臺北客運</option>
-                    <option value="ZhinanBus">指南客運</option>
-                    <option value="NewTaipeiBus">新北客運</option>
-                    <option value="SanChung">三重客運</option>
-                    <option value="KuoKuang">國光客運</option>
-                    <option value="MetropolitanTransport">大都會客運</option>
-                    <option value="ZhongxingBus">中興巴士</option>
-                    <option value="Kuang-HuaBus">光華巴士</option>
-                    <option value="DaNan">大南汽車</option>
-                    <option value="HsinBus">欣欣客運</option>
-                    <option value="SindianBus">新店客運</option>
-                    <option value="TamshuiBus">淡水客運</option>
-                    <option value="TaoyuanBus">桃園客運</option>
-                    <option value="howtai">豪泰客運</option>
-                    <option value="southeastBus">東南客運</option>
-                    <option value="CitiAirBus">大有巴士</option>
-                    <option value="RoyalBus">皇家客運</option>
-                    <option value="ZhongliBus">中壢客運</option>
-                    <option value="YatungBus">亞通客運</option>
-                    <option value="UnitedBus">統聯客運</option>
-                    <option value="ChampionTransportation">金台客運</option>
-                    <option value="Jet-ChenBus">捷乘客運</option>
-                    <option value="Yi-JetTechIntegration">亦捷科際</option>
-                </optgroup>
-                 <optgroup label="新竹/苗栗">
-                  <option value="HsinchuBus">新竹客運</option>
-                  <option value="KuoKuang">國光客運</option>
-                  <option value="ChampionTransportation">金牌客運</option>
-                  <option value="YosemiteBus">科技之星</option>
-                  <option value="MiaoLi">苗栗客運</option>
-                  <option value="Jet-ChenBus">捷乘客運</option>
-                  <option value="Yi-JetTechIntegration">亦捷科際</option>
-                 </optgroup>
-                <optgroup label="彰化">
-                  <option value="ChanghuaBus">彰化客運</option>
-                  <option value="YuanLinBus">員林客運</option>
-                  <option value="Chung-LuBus">中鹿客運</option>
-                  <option value="UnitedBus">統聯客運</option>
-                  <option value="KuoKuang">國光客運</option>
-                  <option value="NANTOUBUS">南投客運</option>
-                </optgroup>
-                <optgroup label="南投">
-                  <option value="NANTOUBUS">南投客運</option>
-                  <option value="ChanghuaBus">彰化客運</option>
-                  <option value="YuanLinBus">員林客運</option>
-                  <option value="AllDayBus">總達客運</option>
-                  <option value="TaichungBus">臺中客運</option>
-                  <option value="goto307">杉林溪客運</option>
-                  <option value="GreenTransit">豐榮客運</option>
-                  <option value="ChuanHang">全航客運</option>
-                  <option value="UnitedBus">統聯客運</option>
-                </optgroup>
-                <optgroup label="雲林/嘉義">
-                  <option value="taisibus">台西客運</option>
-                  <option value="YunlinBus">雲林客運</option>
-                  <option value="SOLARbus">日統客運</option>
-                  <option value="UnitedBus">統聯客運</option>
-                  <option value="ChiayiCountyBus">嘉義縣公車處</option>
-                  <option value="ChiayiBus">嘉義客運</option>
-                  <option value="AlishanBus">阿里山客運</option>
-                  <option value="HO-HSINBus">和欣客運</option>
-                  <option value="KuoKuang">國光客運</option>
-                  <option value="Jet-ChenBus">捷乘客運</option>
-                </optgroup>
-                <optgroup label="臺南">
-                  <option value="SinhuaBus">興南客運</option>
-                  <option value="SingingBus">新營客運</option>
-                  <option value="TainanBus">府城客運</option>
-                  <option value="Han-ChengBus">漢程客運</option>
-                  <option value="GeyaBus">巨業交通</option>
-                  <option value="UnitedBus">統聯客運</option>
-                </optgroup>
-                <optgroup label="高雄">
-                  <option value="KaohsiungBus">高雄客運</option>
-                  <option value="SouthTaiwanBus">南臺灣客運</option>
-                  <option value="Han-ChengBus">漢程客運</option>
-                  <option value="GreatCityLifeBus">港都客運</option>
-                  <option value="E-DaBus">義大客運</option>
-                  <option value="UnitedBus">統聯客運</option>
-                  <option value="southeastBus">東南客運</option>
-                </optgroup>
-                <optgroup label="屏東">
-                  <option value="PingTungBus">屏東客運</option>
-                  <option value="KaohsiungBus">高雄客運</option>
-                  <option value="Jet-ChenBus">捷乘客運</option>
-                </optgroup>
-                <optgroup label="東部縣市">
-                  <option value="MetropolitanTransport">大都會客運</option>
-                  <option value="CapitalBus">首都客運</option>
-                  <option value="KamalanBus">葛瑪蘭客運</option>
-                  <option value="KuoKuang">國光客運</option>
-                  <option value="TarokoBus">太魯閣客運</option>
-                  <option value="hopelandbus">華聯客運</option>
-                  <option value="UnitedBus">統聯客運</option>
-                  <option value="DiingDongBus">鼎東客運</option>
-                  <option value="ShingDongBus">興東客運</option>
-                  <option value="PuyumaTransportation">普悠瑪客運</option>
-                  <option value="EasternTopTransportation">東台灣客運</option>
-                </optgroup>
-                 <optgroup label="離島">
-                  <option value="phpto">澎湖縣公車處</option>
-                  <option value="matsuebus">連江縣公共車船管理處</option>
-                  <option value="Kinmen">金門縣公共車船管理處</option>
-                </optgroup>
-                <optgroup label="其他/跨區">
-                    <option value="Other">其他業者</option>
-                </optgroup>
+                <option value="" disabled selected>載入中...</option>
             </select>
         </div>
 
@@ -480,20 +159,58 @@
             </select>
         </div>
 
+        <div class="form-group">
+            <label>⭐ 搭乘滿意度評分</label>
+            <select id="rating" name="rating">
+                <option value="5" selected>⭐⭐⭐⭐⭐ (非常滿意)</option>
+                <option value="4">⭐⭐⭐⭐ (滿意)</option>
+                <option value="3">⭐⭐⭐ (普通)</option>
+                <option value="2">⭐⭐ (待加強)</option>
+                <option value="1">⭐ (極差)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>🌤️ 當時天氣狀況</label>
+            <select id="weather" name="weather">
+                <option value="☀️ 晴天" selected>☀️ 晴天</option>
+                <option value="⛅ 多雲">⛅ 多雲</option>
+                <option value="☁️ 陰天">☁️ 陰天</option>
+                <option value="🌧️ 雨天">🌧️ 雨天</option>
+                <option value="⛈️ 豪雨/颱風">⛈️ 豪雨/颱風</option>
+                <option value="🌫️ 起霧">🌫️ 起霧</option>
+            </select>
+        </div>
+
+        <div class="form-group full-width" style="background: #e0f2fe; padding: 15px; border-radius: 8px;">
+            <div style="display: none;">
+                <input type="file" id="photoUpload" accept="image/*">
+            </div>
+            <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
+                <input type="checkbox" id="useLocation" style="width: 20px; height: 20px; margin-right: 10px;">
+                📍 附上目前定位座標 (地圖打卡)
+            </label>
+        </div>
+
         <div class="form-group full-width">
             <label>備註</label>
             <textarea id="note" placeholder="路況、司機、擁擠程度..."></textarea>
         </div>
 
         <div class="button-group full-width">
-            <button type="button" onclick="saveData()" class="btn-orange">💾 儲存紀錄</button>
+            <button type="button" onclick="saveData()" class="btn-orange" id="btnSave">💾 儲存紀錄</button>
             <button type="button" onclick="saveEdit()" class="btn-blue" id="btnEdit" style="display:none;">✏️ 儲存修改</button>
             <button type="button" onclick="deleteRecord()" class="btn-red" id="btnDelete" style="display:none;">🗑️ 刪除紀錄</button>
             <button type="button" onclick="cancelEdit()" class="btn-gray" id="btnCancel" style="display:none;">❌ 取消編輯</button>
             
+            <button type="button" onclick="loadFrequentConfig()" class="btn-gold">⭐ 填入最常搭配置</button>
+            
             <input type="file" id="importFile" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleFileSelect(this)">
             <button type="button" onclick="document.getElementById('importFile').click()" class="btn-green">📥 匯入資料</button>
             <button type="button" onclick="exportCSV()" class="btn-blue">📤 匯出 CSV</button>
+            
+            <button type="button" onclick="generateRecapModal()" class="btn-pink">🎉 我的搭車回顧</button>
+            
             <button type="button" onclick="showStats()" class="btn-purple">📊 統計圖表</button>
             <button type="button" onclick="showBusStats()" class="btn-green">🚌 車號統計列表</button>
             <button type="button" onclick="deleteAllRecords()" class="btn-red">⚠️ 清空全部</button>
@@ -504,7 +221,7 @@
   <hr style="margin: 30px 0; border: 0; border-top: 1px solid #e5e7eb;">
 
   <h2>紀錄清單</h2>
-  <div style="margin-bottom: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 15px;">
+  <div style="margin-bottom: 15px; display: flex; align-items: center; flex-wrap: wrap; gap: 15px;">
     <div style="display: flex; align-items: center;">
         <input type="checkbox" id="showAllData" onchange="toggleDataView()" style="width: 20px; height: 20px; margin-right: 10px;">
         <label for="showAllData" style="margin: 0; cursor: pointer; color: #2563eb; font-weight: bold;">🌏 顯示所有人的紀錄 (社群模式)</label>
@@ -512,9 +229,18 @@
     <button type="button" onclick="loadAllRecords()" class="btn-blue" style="margin: 0; padding: 6px 12px; font-size: 14px;">📂 載入全部歷史紀錄</button>
   </div>
   
-  <div class="search-box">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="tableSearch" placeholder="搜尋紀錄... (輸入車號、路線、業者或使用者)" onkeyup="filterTable()">
+  <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); align-items: center;">
+      <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="tableSearch" placeholder="搜尋車號、路線或使用者" onkeyup="filterTable()">
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <span style="font-weight: bold; color: #4b5563;">📅 日期篩選:</span>
+          <input type="date" id="startDate" onchange="filterTable()" style="padding: 8px; width: auto; border: 1px solid #d1d5db; border-radius: 6px;">
+          <span style="color: #6b7280;">至</span>
+          <input type="date" id="endDate" onchange="filterTable()" style="padding: 8px; width: auto; border: 1px solid #d1d5db; border-radius: 6px;">
+          <button type="button" onclick="clearDateFilter()" class="btn-gray" style="margin: 0; padding: 8px 12px; font-size: 14px;">清除</button>
+      </div>
   </div>
   
   <div class="table-responsive">
@@ -524,7 +250,7 @@
             <th>使用者</th>
             <th>時間</th><th>星期</th><th>客運業者</th>
             <th>車廠</th><th>路線</th><th>車號</th>
-            <th>車型</th><th>備註</th>
+            <th>車型</th><th>⭐ 評分/天氣</th><th>備註與附件</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -533,26 +259,21 @@
 
   <div id="statsModal" class="modal">
     <div class="modal-content">
-      <span class="close-btn" onclick="closeStats()">&times;</span>
+      <span class="close-btn" onclick="closeStats()">×</span>
       <h2 style="text-align: center; color: #2563eb;">📊 搭乘統計分析</h2>
-      
-      <div style="display: flex; justify-content: space-around; margin-bottom: 20px; font-size: 1.2em;">
+      <div style="display: flex; justify-content: space-around; margin-bottom: 20px; font-size: 1.2em; background: #eff6ff; padding: 15px; border-radius: 8px;">
           <div>總次數: <b id="statTotal" style="color:#2563eb">0</b></div>
           <div>不同車輛: <b id="statUnique" style="color:#059669">0</b></div>
       </div>
-
-      <div class="chart-container">
-          <canvas id="operatorChart"></canvas>
-      </div>
-      <div class="chart-container">
-          <canvas id="routeChart"></canvas>
-      </div>
+      <div class="chart-container"><canvas id="operatorChart"></canvas></div>
+      <div class="chart-container"><canvas id="routeChart"></canvas></div>
+      <div class="chart-container"><canvas id="userChart"></canvas></div>
     </div>
   </div>
 
-    <div id="busStatsModal" class="modal">
+  <div id="busStatsModal" class="modal">
     <div class="modal-content wide-modal">
-      <span class="close-btn" onclick="closeBusStats()">&times;</span>
+      <span class="close-btn" onclick="closeBusStats()">×</span>
       <h2 style="text-align: center; color: #059669;">🚌 車號統計列表</h2>
       <p style="text-align: center; margin-bottom: 20px; color: #666;">依照車號排序 (A-Z)</p>
       <div class="table-responsive">
@@ -564,8 +285,35 @@
     </div>
   </div>
 
+  <div id="recapModal" class="modal">
+    <div class="modal-content" style="background: transparent; box-shadow: none; border: none; max-width: 500px;">
+      <span class="close-btn" onclick="closeRecap()" style="color: white; text-shadow: 1px 1px 2px black;">×</span>
+      
+      <div id="recapCard">
+          <div class="recap-title">🚌 我的公車冒險回顧 🚌</div>
+          <div style="font-size: 18px; margin-bottom: 10px;">總共搭乘了</div>
+          <div class="recap-stat" id="recapTotal">0</div>
+          <div style="font-size: 18px; margin-bottom: 20px;">次公車！</div>
+          
+          <div class="recap-box">
+              <div style="color: #bfdbfe; font-size: 14px; margin-bottom: 5px;">🏆 最愛的客運</div>
+              <div style="font-size: 22px; font-weight: bold;" id="recapOp">載入中...</div>
+          </div>
+          
+          <div class="recap-box">
+              <div style="color: #bfdbfe; font-size: 14px; margin-bottom: 5px;">🛣️ 最常搭的路線</div>
+              <div style="font-size: 22px; font-weight: bold;" id="recapRoute">載入中...</div>
+          </div>
+          
+          <div style="margin-top: 20px; font-size: 12px; color: rgba(255,255,255,0.7);">來自「每日搭乘調查」系統</div>
+      </div>
+      
+      <button onclick="downloadRecap()" class="btn-gold" style="width: 100%; margin-top: 20px; padding: 15px; font-size: 18px;">📸 儲存圖片並分享</button>
+    </div>
+  </div>
+
   <footer style="text-align: center; margin-top: 40px; margin-bottom: 20px; color: #9ca3af; font-size: 0.85em;">
-    系統更新時間：2025/01/17
+    系統更新時間：<span id="footerUpdateTime">讀取中...</span>
   </footer>
 
 <script>
@@ -583,732 +331,579 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// --- 2. 全域變數與資料 ---
+// --- 2. 全域變數 ---
 let editDocId = null;
-let globalRecords = [];
+let globalRecords = []; 
+let myAllRecords = [];  
 let operatorChoiceInstance = null;
 let charts = {}; 
-let useLimit = true; // 預設為 true (限制 200 筆)
+let useLimit = true;
 
-const OPERATOR_NAMES = {
-    "KeelungCity": "基隆市公車處", "KeelungBus": "基隆客運", "CapitalBus": "首都客運", "TaipeiBus": "臺北客運",
-    "ZhinanBus": "指南客運", "NewTaipeiBus": "新北客運", "SanChung": "三重客運", "KuoKuang": "國光客運",
-    "MetropolitanTransport": "大都會客運", "ZhongxingBus": "中興巴士", "Kuang-HuaBus": "光華巴士", "DaNan": "大南汽車",
-    "HsinBus": "欣欣客運", "SindianBus": "新店客運", "TamshuiBus": "淡水客運", "TaoyuanBus": "桃園客運",
-    "FuhobusInc": "福和客運", "RoyalBus": "皇家客運", "howtai": "豪泰客運", "southeastBus": "東南客運",
-    "CitiAirBus": "大有巴士", "ZhongliBus": "中壢客運", "HsinchuBus": "新竹客運", "YatungBus": "亞通客運",
-    "UnitedBus": "統聯客運", "ChampionTransportation": "金台客運", "UnitedBus1": "中台灣客運",
-    "YosemiteBus": "科技之星", "MiaoLi": "苗栗客運", "Jet-ChenBus": "捷乘客運", "Yi-JetTechIntegration": "亦捷科際",
-    "FengyuanBus": "豐原客運", "TaichungBus": "臺中客運", "GeyaBus": "巨業交通", "ChuanHang": "全航客運",
-    "MiaoLiBus": "苗栗客運", "HO-HSINBus": "和欣客運", "Chung-LuBus": "中鹿客運", "AllDayBus": "總達客運",
-    "freego": "建明客運", "RuiyiTransportation": "睿奕交通", "NANTOUBUS": "南投客運", "ChanghuaBus": "彰化客運",
-    "YuanLinBus": "員林客運", "taisibus": "台西客運", "goto307": "杉林溪客運",
-    "GreenTransit": "豐榮客運", "YunlinBus": "雲林客運", "SOLARbus": "日統客運", "ChiayiBus": "嘉義客運",
-    "ChiayiCountyBus": "嘉義縣公車處", "AlishanBus": "阿里山客運", "SinhuaBus": "興南客運", "SingingBus": "新營客運",
-    "TainanBus": "府城客運", "Han-ChengBus": "漢程客運", "KaohsiungBus": "高雄客運", "E-DaBus": "義大客運",
-    "SouthTaiwanBus": "南臺灣客運", "GreatCityLifeBus": "港都客運", "PingTungBus": "屏東客運", "KamalanBus": "葛瑪蘭客運",
-    "TarokoBus": "太魯閣客運", "hopelandbus": "華聯客運", "DiingDongBus": "鼎東客運", "ShingDongBus": "興東客運",
-    "PuyumaTransportation": "普悠瑪客運", "EasternTopTransportation": "東台灣客運", "TailianBus": "台聯客運",
-    "Kinmen": "金門縣公共車船管理處", "matsuebus": "連江縣公共車船管理處", "phpto": "澎湖縣公車處", 
-    "Other": "其他業者"
-};
+let OPERATOR_NAMES = {};
+let operatorToManufacturer = {};
+let busGroups = {};
 
 const BUSTYPE_NAMES = {
     "dieselbus": "柴油巴士", "electricbus": "電動巴士", "articulatedbus": "雙節巴士",
     "minibus": "小型巴士", "Freewaybusservice": "國道客運", "Other": "其他"
 };
 
-const operatorToManufacturer = {
-    "TaichungBus": ["霧峰站", "豐原站", "東海站", "高鐵站", "清水站", "沙鹿站", "大甲站", "國道站", "梧棲站"],
-    "UnitedBus": ["豐勢站", "清水站", "烏日站", "新福站", "霧峰站", "中科站", "干城站", "光復站", "大園站", "東勇站", "八德站", "平鎮站", "金馬站", "西港站", "竹山站", "斗六站", "北港站", "嘉義站", "永康站", "鼓山站", "羅東站", "花蓮站", "瑞豐站"],
-    "GeyaBus": ["大甲站", "沙鹿站", "嶺東站", "聯邦停車場"],
-    "ChuanHang": ["旱溪站", "聯邦停車場"],
-    "FengyuanBus": ["台中站", "豐原站", "東勢站", "大甲站", "谷關站", "卓蘭站", "梧棲站"],
-    "southeastBus": ["苑裡站", "大里站", "內湖站", "萬芳站", "高雄站"],
-    "MiaoLiBus": ["南苗站", "頭份站", "南庄站", "苑裡站", "新竹站", "苗栗站"],
-    "UnitedBus1": ["豐勢站", "清水站", "烏日站", "新福站", "霧峰站", "中科站", "干城站"],
-    "HO-HSINBus": ["台北站", "台中站", "台南站", "高雄站"],
-    "Chung-LuBus": ["大甲站", "北屯站", "嶺東站", "聯邦停車場"],
-    "AllDayBus": ["台中站", "水里站", "南投站"],
-    "KuoKuang": ["干城站", "五股站", "暖暖站", "金山站", "羅東站", "宜蘭站", "桃園站", "中壢站", "新竹站", "竹東站", "苗栗站", "彰化站", "南投站", "埔里站", "嘉義站", "台南站"],
-    "freego": ["苑裡站(東南客運)"],
-    "RuiyiTransportation": ["梧棲站", "大甲站", "東海大學"],
-    "NANTOUBUS": ["埔里站"],
-    "ChanghuaBus": ["彰化站", "員林站", "水尾站", "鹿港站", "南投站", "草屯站", "田中站"],
-    "YuanLinBus": ["溪湖站", "二林站", "員林站", "彰化站", "田中站", "台中站", "竹山站", "水里站", "鹿谷站"],
-    "CapitalBus": ["三重一站", "三重二站", "二重站", "新莊一站", "新莊二站", "新莊站(大都會客運)", "三峽一站(台北客運)", "內湖站", "東園站", "士林站", "南港站", "經貿新站(充電站)", "經貿站", "汐止一站", "汐止二站", "社子站", "安康站", "羅東站", "民生站(台北客運)", "板橋前站(台北客運)", "板橋站", "八斗子站", "基隆站", "花蓮站", "五結站"],
-    "KamalanBus": ["大園站", "羅東站"],
-    "YatungBus": ["新店站", "新竹站"],
-    "KeelungBus": ["基隆站", "金山站", "瑞芳站", "土城站"],
-    "NewTaipeiBus": ["五堵站", "北士科站(光華巴士)"],
-    "SanChung": ["蘆洲一站", "蘆洲二站", "新莊站", "中港站", "土城站", "八里站", "五股站", "五股二站", "樹林站", "迴龍站", "淡海站", "公西站", "林口站", "南港站"],
-    "SindianBus": ["新店站", "錦繡站"],
-    "TaoyuanBus": ["中壢公車站", "觀音站", "大溪站", "中壢站", "竹圍站", "龍潭站", "大園站", "三峽站", "桃園公車站", "中壢站"],
-    "HsinchuBus": ["新竹站"],
-    "SinhuaBus": ["安平工業區", "臺南火車站", "佳里站", "新化站", "麻豆站", "玉井站", "楠西站"],
-    "CitiAirBus": ["舊莊站", "新莊站", "中華站"],
-    "howtai": ["五股站", "香山站"],
-    "TaipeiBus": ["南雅站", "歡仔園站", "板橋後站", "五福站", "四海站", "中和站", "樹林站", "新店站", "三峽一站", "三峽二站", "木柵站", "中華站", "林口站", "蘆洲站", "民生站", "板橋前站", "江子翠站", "士林站(首都客運)", "象頭埔停車場", "瑞芳站", "蘇澳站(大都會客運)", "花蓮站"],
-    "HsinBus": ["中央站", "中興站", "富德站", "木柵二站(充電站)", "木柵站(充電站)", "東湖站", "深坑站", "華江站", "景新站", "景德站", "興隆停車場"],
-    "DaNan": ["秀山站", "土城站", "關渡站", "內湖站", "中央站(欣欣客運)", "景新站(欣欣客運)", "三鶯轉運站"],
-    "NewTaipeiBus": ["五堵站", "北士科站(光華巴士)"],
-    "ZhongxingBus": ["中和站", "汐止站", "天母站", "故宮站", "泰山站", "三重站", "三芝站(淡水客運)", "北士科充電站(光華巴士)", "北士科站(光華巴士)", "中壢站"],
-    "TamshuiBus": ["淡水站", "三芝站", "八里站", "新市站"],
-    "ZhinanBus": ["新光站", "深坑站", "安和站", "淡海站", "樹林站", "錦繡站", "淡大站", "五股站", "泰山站", "故宮站(中興巴士)", "麟光站", "三重站(中興巴士)", "新市站(淡水客運)", "八里站(淡水客運)", "桃園站", "北士科充電站(光華巴士)"],
-    "MetropolitanTransport": ["內湖站", "萬芳站", "陽明山站", "東園站", "蘆洲站", "松德站", "榮總站", "吳興街站", "中和站", "四海站(臺北客運)", "凌雲站", "東湖站", "松職站", "麟光站", "舊莊站", "士林站", "建北站", "新莊站", "蘇澳站", "基隆站", "林口站(台北客運)", "新莊二站(首都客運)", "象頭埔停車場(台北客運)", "新店站(台北客運)", "民生站"],
-    "FuhobusInc": ["大武崙站"],
-    "Kuang-HuaBus": ["東湖站", "北峰站", "北士科站", "天東站", "天西站", "海專站", "故宮站", "麟光站", "中和站", "基隆站(基隆客運)"],
-    "RoyalBus": ["加投站"],
-    "TaoyuanBus": ["中壢公車站", "觀音站", "大溪站", "中壢站", "竹圍站", "龍潭站", "大園站", "三峽站", "桃園公車站", "中壢站"],
-    "ZhongliBus": ["中壢站", "桃園站"],
-    "YatungBus": ["新店站", "新竹站"],
-    "KamalanBus": ["大園站", "羅東站"],
-    "YosemiteBus": ["新竹站"],
-    "taisibus": ["斗六站", "虎尾西站", "北港站", "西螺站", "斗南站", "竹山站"],
-    "NANTOUBU": ["台中干城站", "高鐵台中站", "草屯服務處", "埔里轉運站", "日月潭站"],
-    "GreenTransit": ["中興站"],
-    "AlishanBus": ["太保站"],
-    "YunlinBus": ["雲科大站"],
-    "SOLARbus": ["斗六站", "西螺站", "麥寮站"],
-    "ChiayiBus": ["總公司", "中山總站", "北港站", "朴子站"],
-    "TainanBus": ["頂東站", "茄萣站", "仁德轉運站（胸腔病院旁)", "塭南里", "下鯤鯓站"],
-    "SinhuaBus": ["安平工業區", "臺南火車站", "佳里站", "新化站", "麻豆站", "玉井站", "楠西站"],
-    "SingingBus": ["總公司", "新營站", "白河站"],
-    "Han-ChengBus": ["金獅湖站", "新營站"],
-    "GreatCityLifeBus": ["加昌站", "小港站", "左營南站", "前鎮站", "建軍站"],
-    "KaohsiungBus": ["總公司", "林園站", "小琉球站", "鳳山站", "大順站", "建國站", "楠梓站", "岡山站", "茄萣站", "旗山轉運站", "旗山北站", "美濃站", "六龜站", "甲仙站", "台南站", "水門轉運站"],
-    "SouthTaiwanBus": ["高雄站"],
-    "E-DaBus": ["義大站"],
-    "PingTungBus": ["屏東站", "屏科大", "里港站", "高樹站", "美濃站", "水門站", "鹽埔站", "潮州站", "東港站", "枋寮站", "恆春站", "共營中心"],
-    "TarokoBus": ["東華大學站",],
-    "PuyumaTransportation": ["更生路車廠"],
-    "phpto": ["馬公總站"],
-    "matsuebus": ["北竿", "南竿", "東莒", "西莒", "東引"],
-    "Kinmen": ["金城站(金城停車場)", "山外站(建華停車場)", "沙美站", "烈嶼站"]
-};
+// --- 3. 系統初始化 ---
+document.addEventListener('DOMContentLoaded', async function() {
+    const opSelect = document.getElementById('operator');
+    operatorChoiceInstance = new Choices(opSelect, {
+        searchEnabled: true, shouldSort: false, shouldSortItems: false,
+        itemSelectText: '', placeholder: true, placeholderValue: '請搜尋或選擇客運業者'
+    });
+    
+    opSelect.addEventListener('change', function(event) { updateManufacturer(event.target.value); });
+    document.getElementById("busNumber").addEventListener("input", function() { this.value = this.value.toUpperCase(); });
+    updateTimestamp();
 
-// --- 3. 初始化與工具函式 ---
-
-// 顯示/隱藏 Loading
-function toggleLoading(show) {
-    document.getElementById("loadingOverlay").style.display = show ? "flex" : "none";
-}
-
-// 顯示 Toast 通知 (SweetAlert2)
-const Toast = Swal.mixin({
-    toast: true, position: 'top-end', showConfirmButton: false, timer: 3000,
-    timerProgressBar: true, didOpen: (toast) => {
-        toast.addEventListener('mouseenter', Swal.stopTimer)
-        toast.addEventListener('mouseleave', Swal.resumeTimer)
+    try {
+        const snap = await db.collection("systemConfig").doc("operators").get();
+        if(snap.exists) {
+            const data = snap.data();
+            OPERATOR_NAMES = data.OPERATOR_NAMES || {};
+            operatorToManufacturer = data.operatorToManufacturer || {};
+            busGroups = data.groups || {};
+            
+            // 🌟 嚴格依照您要求的順序排列
+            const GROUP_ORDER = [
+                "臺中市各業者", 
+                "基隆/新北/臺北/桃園", 
+                "新竹/苗栗", 
+                "彰化", 
+                "南投",
+                "雲林/嘉義", 
+                "臺南", 
+                "高雄", 
+                "屏東", 
+                "東部縣市", 
+                "離島", 
+                "國道/長途客運", 
+                "其他"
+            ];
+            
+            const choicesData = [];
+            choicesData.push({ value: '', label: '--- 請選擇客運業者 ---', disabled: true, selected: true });
+            
+            GROUP_ORDER.forEach(groupName => {
+                if (busGroups[groupName]) {
+                    const opIds = busGroups[groupName];
+                    const groupChoices = opIds.map(id => ({ value: id, label: OPERATOR_NAMES[id] || id }));
+                    if(groupChoices.length > 0) {
+                        choicesData.push({ label: groupName, id: groupName, disabled: false, choices: groupChoices });
+                    }
+                }
+            });
+            
+            // 防呆：不在清單上的群組加在後面
+            for (const [groupName, opIds] of Object.entries(busGroups)) {
+                if (!GROUP_ORDER.includes(groupName)) {
+                    const groupChoices = opIds.map(id => ({ value: id, label: OPERATOR_NAMES[id] || id }));
+                    if(groupChoices.length > 0) {
+                        choicesData.push({ label: groupName, id: groupName, disabled: false, choices: groupChoices });
+                    }
+                }
+            }
+            
+            operatorChoiceInstance.clearChoices();
+            operatorChoiceInstance.setChoices(choicesData, 'value', 'label', true);
+        } else {
+            operatorChoiceInstance.clearChoices();
+            operatorChoiceInstance.setChoices([{value: '', label: '系統尚未初始化', disabled: true, selected: true}], 'value', 'label', true);
+        }
+    } catch(e) {
+        console.error(e);
+        operatorChoiceInstance.clearChoices();
+        operatorChoiceInstance.setChoices([{value: '', label: '資料庫載入失敗', disabled: true, selected: true}], 'value', 'label', true);
     }
+    
+    document.getElementById("loadingOverlay").style.display = "none";
+    
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            document.getElementById("userEmail").textContent = user.email;
+            if(user.displayName) document.getElementById("nicknameInput").value = user.displayName;
+            document.getElementById("loginForm").style.display = "none";
+            document.getElementById("userInfo").style.display = "block";
+            loadRecords(user.uid);
+            fetchMyAllRecords(user.uid); 
+        } else {
+            document.getElementById("loginForm").style.display = "block";
+            document.getElementById("userInfo").style.display = "none";
+            document.getElementById("recordTable").querySelector("tbody").innerHTML = "";
+            globalRecords = []; myAllRecords = [];
+        }
+    });
 });
 
-function showToast(icon, title) {
-    Toast.fire({ icon: icon, title: title });
+// 背景抓取個人所有資料
+function fetchMyAllRecords(uid) {
+    db.collection("busRecords").where("userId", "==", uid).onSnapshot(s => {
+        myAllRecords = [];
+        s.docs.forEach(d => myAllRecords.push(d.data()));
+    });
 }
 
-// 裝置偵測
+db.collection("systemConfig").doc("main").onSnapshot(doc => {
+    const annBox = document.getElementById("systemAnnouncement"), annText = document.getElementById("announcementText"), timeText = document.getElementById("footerUpdateTime");
+    if (doc.exists) {
+        const data = doc.data();
+        timeText.textContent = data.updateTime ? data.updateTime : "尚未發布更新時間";
+        if (data.announcement && data.announcement.trim() !== "") { annText.textContent = data.announcement; if(annBox) annBox.style.display = "block"; } 
+        else { if(annBox) annBox.style.display = "none"; }
+    } else { timeText.textContent = "等待發布..."; }
+});
+
+// --- UI 工具 ---
+function toggleLoading(show, text="資料處理中...") { 
+    const overlay = document.getElementById("loadingOverlay");
+    overlay.querySelector("div:nth-child(2)").textContent = text;
+    overlay.style.display = show ? "flex" : "none"; 
+}
+const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true });
+function showToast(icon, title) { Toast.fire({ icon: icon, title: title }); }
 function detectDevice() {
-    const width = window.innerWidth;
-    const tag = document.getElementById("deviceTag");
+    const width = window.innerWidth; const tag = document.getElementById("deviceTag");
     if (width < 768) { tag.textContent = "📱 手機版"; tag.style.backgroundColor = "#10b981"; }
     else { tag.textContent = "💻 電腦版"; tag.style.backgroundColor = "#3b82f6"; }
 }
-window.addEventListener('resize', detectDevice);
-detectDevice();
+window.addEventListener('resize', detectDevice); detectDevice();
 
-// 初始化 Choices.js
-document.addEventListener('DOMContentLoaded', function() {
-    const opSelect = document.getElementById('operator');
-    
-    operatorChoiceInstance = new Choices(opSelect, {
-        searchEnabled: true,
-        shouldSort: false,      // 🛑 禁止自動排序
-        shouldSortItems: false, // 🛑 確保內容選項也不會被重新排序
-        itemSelectText: '',
-        placeholder: true,
-        placeholderValue: '請搜尋或選擇客運業者'
-    });
-
-    // 監聽 Choices.js 的改變事件來連動車廠
-    opSelect.addEventListener('change', function(event) {
-        updateManufacturer(event.target.value);
-    });
-
-    // 車號自動轉大寫
-    document.getElementById("busNumber").addEventListener("input", function() {
-        this.value = this.value.toUpperCase();
-    });
-    
-    updateTimestamp();
-});
-
-// 🌟 車廠更新函式
 function updateManufacturer(operatorValue) {
-    const manuSelect = document.getElementById("manufacturer");
-    manuSelect.innerHTML = "";
-    
+    const manuSelect = document.getElementById("manufacturer"); manuSelect.innerHTML = "";
     const stations = operatorToManufacturer[operatorValue];
-    
-    if (stations) {
-        const def = document.createElement("option");
-        def.value = ""; def.textContent = "--- 請選擇車廠/場站 (選填) ---"; def.selected = true;
-        manuSelect.appendChild(def);
-        stations.forEach(m => {
-            const op = document.createElement("option");
-            op.value = m; op.textContent = m;
-            manuSelect.appendChild(op);
-        });
+    if (stations && stations.length > 0) {
+        const def = document.createElement("option"); def.value = ""; def.textContent = "--- 請選擇車廠/場站 (選填) ---"; def.selected = true; manuSelect.appendChild(def);
+        stations.forEach(m => { const op = document.createElement("option"); op.value = m; op.textContent = m; manuSelect.appendChild(op); });
     } else {
-        const op = document.createElement("option");
-        op.value = ""; op.textContent = "無對應車廠資料 (可略過)";
-        manuSelect.appendChild(op);
+        const op = document.createElement("option"); op.value = ""; op.textContent = "無對應車廠資料 (可略過)"; manuSelect.appendChild(op);
     }
 }
 
 function updateTimestamp() {
     const now = new Date();
-    const timeString = now.toLocaleString('zh-TW', {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: 'numeric', minute: '2-digit', second: '2-digit',
-        hour12: true
-    });
-    document.getElementById("timestamp").value = timeString;
-    
-    const w = ["日","一","二","三","四","五","六"];
-    document.getElementById("weekday").value = "星期" + w[now.getDay()];
+    document.getElementById("timestamp").value = now.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+    document.getElementById("weekday").value = "星期" + ["日","一","二","三","四","五","六"][now.getDay()];
 }
 
-// --- 4. 使用者認證 ---
-auth.onAuthStateChanged(user => {
-    if (user) {
-        document.getElementById("userEmail").textContent = user.email;
-        // 🌟 自動帶入目前暱稱
-        if(user.displayName) {
-             document.getElementById("nicknameInput").value = user.displayName;
-        }
-        document.getElementById("loginForm").style.display = "none";
-        document.getElementById("userInfo").style.display = "block";
-        loadRecords(user.uid);
-    } else {
-        document.getElementById("loginForm").style.display = "block";
-        document.getElementById("userInfo").style.display = "none";
-        document.getElementById("recordTable").querySelector("tbody").innerHTML = "";
-        globalRecords = [];
-    }
-});
-
+// --- 登入設定 ---
 async function login() {
     const e = document.getElementById("email").value, p = document.getElementById("password").value;
     if(!e || !p) return showToast('warning', '請輸入帳號密碼');
-    toggleLoading(true);
-    try { await auth.signInWithEmailAndPassword(e,p); showToast('success', '登入成功'); }
-    catch(err){ showToast('error', err.message); }
-    finally { toggleLoading(false); }
+    toggleLoading(true); try { await auth.signInWithEmailAndPassword(e,p); showToast('success', '登入成功'); } catch(err){ showToast('error', err.message); } finally { toggleLoading(false); }
 }
-
 async function signup() {
     const e = document.getElementById("email").value, p = document.getElementById("password").value;
     if(p.length<6) return showToast('warning', '密碼需6位以上');
-    toggleLoading(true);
-    try { await auth.createUserWithEmailAndPassword(e,p); showToast('success', '註冊成功'); }
-    catch(err){ showToast('error', err.message); }
-    finally { toggleLoading(false); }
+    toggleLoading(true); try { await auth.createUserWithEmailAndPassword(e,p); showToast('success', '註冊成功'); } catch(err){ showToast('error', err.message); } finally { toggleLoading(false); }
 }
-
 function logout() { auth.signOut(); showToast('info', '已登出'); }
 
-// 🌟 更新暱稱
 async function updateProfileName() {
-    const user = auth.currentUser;
-    if(!user) return;
+    const user = auth.currentUser; if(!user) return;
     const name = document.getElementById("nicknameInput").value.trim();
     if(!name) return showToast('warning', '請輸入暱稱');
-    
     toggleLoading(true);
-    try {
-        await user.updateProfile({ displayName: name });
-        showToast('success', '暱稱已更新為: ' + name);
-        loadRecords(user.uid);
-    } catch(e) {
-        console.error(e);
-        showToast('error', '更新失敗');
-    } finally {
-        toggleLoading(false);
+    try { await user.updateProfile({ displayName: name }); showToast('success', '更新成功'); loadRecords(user.uid); } 
+    catch(e) { showToast('error', '更新失敗'); } finally { toggleLoading(false); }
+}
+
+// --- 🌟 取得成就徽章邏輯 ---
+function getUserBadges(uid, uname) {
+    let records = globalRecords.filter(r => r.userId === uid);
+    if (uid === auth.currentUser?.uid && myAllRecords.length > 0) records = myAllRecords;
+    
+    let badges = [];
+    if(records.length >= 100) badges.push('<span class="badge badge-king">👑百搭達人</span>');
+    else if(records.length >= 50) badges.push('<span class="badge badge-king">🏆五十狂熱</span>');
+    else if(records.length >= 10) badges.push('<span class="badge">🚌公車愛好者</span>');
+
+    let nightCount = 0, earlyCount = 0;
+    records.forEach(r => {
+        if(r.timestamp) {
+            const h = r.timestamp.toDate().getHours();
+            if (h >= 22 || h <= 3) nightCount++;
+            if (h >= 4 && h <= 6) earlyCount++;
+        }
+    });
+    if (nightCount >= 5) badges.push('<span class="badge badge-night">🦉夜貓子</span>');
+    if (earlyCount >= 5) badges.push('<span class="badge badge-early">☀️早起鳥兒</span>');
+
+    return badges.join(" ");
+}
+
+// --- 🌟 載入常用配置邏輯 ---
+function loadFrequentConfig() {
+    if (myAllRecords.length === 0) return showToast('info', '您還沒有足夠的搭乘紀錄喔！');
+    
+    const combos = {};
+    myAllRecords.forEach(r => {
+        if(r.operator && r.busType) {
+            const key = `${r.operator}||${r.routeCode||""}||${r.busType}`;
+            combos[key] = (combos[key] || 0) + 1;
+        }
+    });
+    
+    let maxCount = 0; let bestKey = "";
+    for (const [key, count] of Object.entries(combos)) {
+        if (count > maxCount) { maxCount = count; bestKey = key; }
+    }
+    
+    if (bestKey) {
+        const [op, route, type] = bestKey.split("||");
+        operatorChoiceInstance.setChoiceByValue(op);
+        updateManufacturer(op);
+        document.getElementById("routeCode").value = route;
+        document.getElementById("busType").value = type;
+        showToast('success', '已自動填入您最愛的配置！');
     }
 }
 
-// --- 5. 資料操作 CRUD ---
-
-// 儲存資料
+// --- CRUD 操作 ---
 async function saveData() {
-    const user = auth.currentUser; 
-    if(!user) return showToast('warning', '請先登入');
+    const user = auth.currentUser; if(!user) return showToast('warning', '請先登入');
     
     const op = document.getElementById("operator").value;
     const type = document.getElementById("busType").value;
     const num = document.getElementById("busNumber").value;
-    const route = document.getElementById("routeCode").value;
-    const manu = document.getElementById("manufacturer").value;
-    const note = document.getElementById("note").value;
-
     if(!op || !type || num.trim()==="") return showToast('warning', '請填寫客運、車型與車號');
 
-    toggleLoading(true);
+    toggleLoading(true, "儲存資料中...");
     try {
+        let location = null;
+        if (document.getElementById("useLocation").checked) {
+            try {
+                toggleLoading(true, "取得GPS座標中...");
+                const pos = await new Promise((resolve, reject) => { navigator.geolocation.getCurrentPosition(resolve, reject, {timeout: 5000}); });
+                location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            } catch(e) { console.log("GPS獲取失敗", e); showToast('warning', '無法取得定位，已略過座標'); }
+        }
+
+        toggleLoading(true, "寫入資料庫...");
         const data = {
             userId: user.uid,
             userEmail: user.email,
-            // 🌟 儲存當下的暱稱，沒有則存 Email 前綴
             userName: user.displayName || user.email.split('@')[0],
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             weekday: document.getElementById("weekday").value,
-            operator: op, manufacturer: manu, routeCode: route,
-            busNumber: num.toUpperCase(), busType: type, note: note
+            operator: op, 
+            manufacturer: document.getElementById("manufacturer").value, 
+            routeCode: document.getElementById("routeCode").value,
+            busNumber: num.toUpperCase(), 
+            busType: type, 
+            rating: document.getElementById("rating").value,
+            weather: document.getElementById("weather").value,
+            note: document.getElementById("note").value
         };
+        
+        if (location) data.location = location;
         
         await db.collection("busRecords").add(data);
         showToast('success', '紀錄已儲存');
         resetForm();
-    } catch(e) { console.error(e); showToast('error', '儲存失敗'); }
+    } catch(e) { console.error(e); showToast('error', '儲存發生錯誤'); }
     finally { toggleLoading(false); }
 }
 
-// 載入編輯
 function loadToForm(id, r) {
     editDocId = id;
-    
     operatorChoiceInstance.setChoiceByValue(r.operator);
-    setTimeout(() => document.getElementById("manufacturer").value = r.manufacturer, 100);
-    
+    setTimeout(() => document.getElementById("manufacturer").value = r.manufacturer || "", 100);
     document.getElementById("routeCode").value = r.routeCode;
     document.getElementById("busNumber").value = r.busNumber;
     document.getElementById("busType").value = r.busType;
+    document.getElementById("rating").value = r.rating || "5";
+    document.getElementById("weather").value = r.weather || "☀️ 晴天";
     document.getElementById("note").value = r.note;
     
-    // UI 切換
+    document.getElementById("btnSave").style.display = "none";
     document.getElementById("btnEdit").style.display = "inline-flex";
     document.getElementById("btnDelete").style.display = "inline-flex";
     document.getElementById("btnCancel").style.display = "inline-flex";
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
-
-function cancelEdit() {
-    resetForm();
-    showToast('info', '已取消編輯');
-}
+function cancelEdit() { resetForm(); showToast('info', '已取消編輯'); }
 
 async function saveEdit() {
     if(!editDocId) return;
     toggleLoading(true);
     try {
         await db.collection("busRecords").doc(editDocId).update({
-            operator: document.getElementById("operator").value,
-            manufacturer: document.getElementById("manufacturer").value,
-            routeCode: document.getElementById("routeCode").value,
-            busNumber: document.getElementById("busNumber").value.toUpperCase(),
-            busType: document.getElementById("busType").value,
+            operator: document.getElementById("operator").value, manufacturer: document.getElementById("manufacturer").value,
+            routeCode: document.getElementById("routeCode").value, busNumber: document.getElementById("busNumber").value.toUpperCase(),
+            busType: document.getElementById("busType").value, 
+            rating: document.getElementById("rating").value,
+            weather: document.getElementById("weather").value,
             note: document.getElementById("note").value
         });
-        showToast('success', '修改成功');
-        resetForm();
-    } catch(e) { showToast('error', '修改失敗'); }
-    finally { toggleLoading(false); }
+        showToast('success', '修改成功'); resetForm();
+    } catch(e) { showToast('error', '修改失敗'); } finally { toggleLoading(false); }
 }
 
 async function deleteRecord() {
     if(!editDocId) return;
-    
-    const result = await Swal.fire({
-        title: '確定刪除?', text: "這筆資料將無法復原", icon: 'warning',
-        showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: '是的, 刪除!'
-    });
-
-    if (result.isConfirmed) {
+    const res = await Swal.fire({ title: '確定刪除?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: '刪除' });
+    if (res.isConfirmed) {
         toggleLoading(true);
-        try {
-            await db.collection("busRecords").doc(editDocId).delete();
-            showToast('success', '已刪除');
-            resetForm();
-        } catch(e){ showToast('error', '刪除失敗'); }
-        finally { toggleLoading(false); }
+        try { await db.collection("busRecords").doc(editDocId).delete(); showToast('success', '已刪除'); resetForm(); } 
+        catch(e){ showToast('error', '刪除失敗'); } finally { toggleLoading(false); }
     }
 }
-
 async function deleteAllRecords() {
     const user = auth.currentUser; if(!user) return;
-    const result = await Swal.fire({
-        title: '⚠️ 危險操作', text: "確定要清空所有紀錄嗎？", icon: 'warning',
-        showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: '全部清空!'
-    });
-
-    if (result.isConfirmed) {
+    const res = await Swal.fire({ title: '⚠️ 清空所有紀錄？', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: '全部清空!' });
+    if (res.isConfirmed) {
         toggleLoading(true);
         try {
             const q = await db.collection("busRecords").where("userId","==",user.uid).get();
-            const batch = db.batch();
-            q.forEach(doc => batch.delete(doc.ref));
-            await batch.commit();
-            showToast('success', '資料庫已清空');
-            resetForm();
-        } catch(e){ showToast('error', '清空失敗'); }
-        finally { toggleLoading(false); }
+            const batch = db.batch(); q.forEach(doc => batch.delete(doc.ref)); await batch.commit();
+            showToast('success', '資料庫已清空'); resetForm();
+        } catch(e){ showToast('error', '清空失敗'); } finally { toggleLoading(false); }
     }
 }
 
 function resetForm() {
-    document.getElementById("surveyForm").reset();
-    operatorChoiceInstance.setChoiceByValue(""); // 重置 Choices
-    editDocId = null;
-    document.getElementById("btnEdit").style.display = "none";
-    document.getElementById("btnDelete").style.display = "none";
-    document.getElementById("btnCancel").style.display = "none";
+    document.getElementById("surveyForm").reset(); operatorChoiceInstance.setChoiceByValue(""); editDocId = null;
+    document.getElementById("btnSave").style.display = "inline-flex";
+    document.getElementById("btnEdit").style.display = "none"; document.getElementById("btnDelete").style.display = "none"; document.getElementById("btnCancel").style.display = "none";
     updateTimestamp();
 }
 
-// 🌟 核心：載入資料 (支援暱稱 + 載入全部按鈕邏輯)
+// 🌟 載入資料 (結合評分、天氣、徽章與附件)
 function loadRecords(uid) {
     const showAll = document.getElementById("showAllData")?.checked;
     let query = db.collection("busRecords");
-
-    if (!showAll) {
-        query = query.where("userId", "==", uid);
-    }
-    
-    // 排序
+    if (!showAll) query = query.where("userId", "==", uid);
     query = query.orderBy("timestamp", "desc");
-
-    // 🌟 如果 useLimit 為 true (預設)，只載入前 200 筆
-    if (useLimit) {
-        query = query.limit(200);
-    }
+    if (useLimit) query = query.limit(200);
     
     query.onSnapshot(snapshot => {
         const tbody = document.getElementById("recordTable").querySelector("tbody");
-        tbody.innerHTML = "";
-        globalRecords = [];
+        tbody.innerHTML = ""; globalRecords = [];
         
         snapshot.docs.forEach(doc => {
-            const r = doc.data();
-            r.id = doc.id;
-            globalRecords.push(r);
+            const r = doc.data(); r.id = doc.id; globalRecords.push(r);
             const row = tbody.insertRow(-1);
             
             const opName = OPERATOR_NAMES[r.operator] || r.operator;
             const busTypeName = BUSTYPE_NAMES[r.busType] || r.busType;
+            const ts = r.timestamp ? r.timestamp.toDate().toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true }) : 'N/A';
             
-            const ts = r.timestamp ? r.timestamp.toDate().toLocaleString('zh-TW', {
-                year: 'numeric', month: '2-digit', day: '2-digit',
-                hour: 'numeric', minute: '2-digit', second: '2-digit',
-                hour12: true
-            }) : 'N/A';
-            
-            // 🌟 顯示名稱邏輯
             const isMine = (r.userId === uid);
             let nameToShow = r.userName || r.userEmail || "未知";
-            const displayUser = isMine ? `👤 ${r.userName || "我"}` : nameToShow;
-            const userStyle = isMine ? "font-weight:bold; color:#2563eb;" : "color:#6b7280;";
+            const badges = getUserBadges(r.userId, nameToShow); 
+            const displayUser = isMine ? `👤 <b>${r.userName || "我"}</b><br>${badges}` : `${nameToShow}<br>${badges}`;
+            
+            // 處理評分與天氣顯示
+            const ratingStr = "⭐".repeat(parseInt(r.rating || 5));
+            const weatherStr = r.weather || "☀️ 晴天";
+            
+            // 處理備註與附件(GPS)
+            let noteHtml = `<div style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.note || ""}</div>`;
+            if (r.location) noteHtml += `<a href="http://maps.google.com/maps?q=${r.location.lat},${r.location.lng}" target="_blank" style="display:inline-block; margin-top:5px; padding:2px 6px; background:#3b82f6; color:white; border-radius:4px; text-decoration:none; font-size:12px;">📍 地圖打卡</a>`;
 
             row.innerHTML = `
-                <td style="${userStyle}">${displayUser}</td>
-                <td>${ts}</td>
-                <td>${r.weekday}</td>
-                <td>${opName}</td>
-                <td>${r.manufacturer || '-'}</td>
-                <td>${r.routeCode || '-'}</td>
-                <td><b>${r.busNumber}</b></td>
-                <td>${busTypeName}</td>
-                <td style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.note}</td>
+                <td>${displayUser}</td><td>${ts}</td><td>${r.weekday}</td><td>${opName}</td>
+                <td>${r.manufacturer || '-'}</td><td>${r.routeCode || '-'}</td><td><b>${r.busNumber}</b></td><td>${busTypeName}</td>
+                <td><div style="color:#f59e0b; font-size:12px;">${ratingStr}</div><div style="font-size:12px; margin-top:4px;">${weatherStr}</div></td>
+                <td>${noteHtml}</td>
             `;
-            
-            if (isMine) {
-                row.onclick = () => loadToForm(doc.id, r);
-                row.style.cursor = "pointer";
-                row.title = "點擊編輯";
-            } else {
-                row.style.cursor = "default";
-                row.title = "僅供檢視";
-            }
+            if (isMine) { row.onclick = (e) => { if(e.target.tagName !== 'A') loadToForm(doc.id, r); }; row.style.cursor = "pointer"; } 
         });
-
-        // 提示載入筆數 (選用)
-        if (!useLimit) {
-            console.log(`已載入 ${snapshot.size} 筆歷史資料`);
-        }
+        filterTable(); 
     });
 }
 
-// 🌟 點擊按鈕：載入全部
-function loadAllRecords() {
-    useLimit = false; // 解除 200 筆限制
-    const user = auth.currentUser;
-    if (user) {
-        loadRecords(user.uid);
-        showToast('info', '正在從雲端下載所有歷史紀錄...');
-    }
-}
+function loadAllRecords() { useLimit = false; const user = auth.currentUser; if(user){ loadRecords(user.uid); showToast('info', '下載所有紀錄中...'); } }
+function toggleDataView() { useLimit = true; const user = auth.currentUser; if(user){ loadRecords(user.uid); } }
 
-// 🌟 切換開關：重置回 200 筆 (保護效能)
-function toggleDataView() {
-    useLimit = true;
-    const user = auth.currentUser;
-    if (user) {
-        loadRecords(user.uid);
-    }
-}
-
-// --- 6. 表格搜尋功能 ---
+// 🌟 日期與關鍵字篩選
 function filterTable() {
-    const input = document.getElementById("tableSearch");
-    const filter = input.value.toUpperCase();
+    const searchInput = document.getElementById("tableSearch").value.toUpperCase();
+    const startDateStr = document.getElementById("startDate").value;
+    const endDateStr = document.getElementById("endDate").value;
+    const start = startDateStr ? new Date(startDateStr + "T00:00:00").getTime() : 0;
+    const end = endDateStr ? new Date(endDateStr + "T23:59:59").getTime() : Infinity;
+
     const table = document.getElementById("recordTable");
     const tr = table.getElementsByTagName("tr");
 
     for (let i = 1; i < tr.length; i++) {
-        let visible = false;
+        let textMatch = false; let dateMatch = true;
         const tds = tr[i].getElementsByTagName("td");
+        if (tds.length === 0) continue;
+
         for (let j = 0; j < tds.length; j++) {
-            if (tds[j] && tds[j].textContent.toUpperCase().indexOf(filter) > -1) {
-                visible = true; break;
-            }
+            if (tds[j] && tds[j].textContent.toUpperCase().indexOf(searchInput) > -1) { textMatch = true; break; }
         }
-        tr[i].style.display = visible ? "" : "none";
+
+        if (start > 0 || end < Infinity) {
+            const timeStr = tds[1].textContent; 
+            const datePart = timeStr.split(' ')[0]; 
+            const rowDate = new Date(datePart).getTime();
+            if (!isNaN(rowDate)) { if (rowDate < start || rowDate > end) dateMatch = false; }
+        }
+        tr[i].style.display = (textMatch && dateMatch) ? "" : "none";
     }
 }
+function clearDateFilter() { document.getElementById("startDate").value = ""; document.getElementById("endDate").value = ""; document.getElementById("tableSearch").value = ""; filterTable(); }
 
-// --- 7. 匯出/匯入/統計 ---
-function exportCSV() {
-    if(globalRecords.length===0) return showToast('info', '無資料可匯出');
-    const data = globalRecords.map(r => ({
-        "時間": r.timestamp ? r.timestamp.toDate().toLocaleString('zh-TW', {
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: 'numeric', minute: '2-digit', second: '2-digit',
-            hour12: true
-        }) : "",
-        "星期": r.weekday, 
-        // 🌟 匯出使用中文名稱
-        "客運": OPERATOR_NAMES[r.operator] || r.operator, 
-        "車廠": r.manufacturer,
-        "路線": r.routeCode, "車號": r.busNumber, "車型": BUSTYPE_NAMES[r.busType]||r.busType, "備註": r.note
-    }));
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, "Records");
-    saveAs(new Blob([XLSX.write(wb,{bookType:'csv',type:'array'})],{type:'text/csv;charset=utf-8;'}), "bus_record.csv");
-}
-
-function handleFileSelect(input) {
-    const f = input.files[0]; if(!f) return;
-    const r = new FileReader();
-    r.onload = e => {
-        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
-        const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-        if(confirm(`匯入 ${data.length} 筆資料?`)) processImport(data);
-        input.value = "";
-    };
-    r.readAsArrayBuffer(f);
-}
-
-function parseImportTime(val) {
-    if (!val) return new Date();
-    if (val instanceof Date) return val;
-    if (typeof val === 'number') {
-        return new Date(Math.round((val - 25569) * 86400 * 1000));
-    }
-    if (typeof val === 'string') {
-        if (val.includes("上午") || val.includes("下午")) {
-            const parts = val.match(/(\d+)\/(\d+)\/(\d+)\s+(上午|下午)(\d+):(\d+):(\d+)/);
-            if (parts) {
-               let [_, y, m, d, ap, h, min, s] = parts;
-               h = parseInt(h);
-               if (ap === "下午" && h < 12) h += 12;
-               if (ap === "上午" && h === 12) h = 0;
-               return new Date(y, m-1, d, h, min, s);
-            }
-        }
-        const d = new Date(val);
-        if (!isNaN(d.getTime())) return d;
-    }
-    return new Date();
-}
-
-async function processImport(data) {
-    const user = auth.currentUser; if(!user) return;
-    toggleLoading(true);
-    let count = 0;
-    try {
-        const batchSize = 500;
-        let batch = db.batch();
-        
-        for(let i=0; i<data.length; i++) {
-            const r = data[i];
-            const importTime = parseImportTime(r['時間'] || r['時間戳記']);
-            const w = ["日","一","二","三","四","五","六"];
-            const weekday = "星期" + w[importTime.getDay()];
-
-            const docRef = db.collection("busRecords").doc();
-            batch.set(docRef, {
-                userId: user.uid,
-                userEmail: user.email,
-                userName: user.displayName || user.email.split('@')[0],
-                timestamp: firebase.firestore.Timestamp.fromDate(importTime),
-                weekday: weekday,
-                operator: r['客運業者'] || r['客運'] || "Other",
-                manufacturer: r['車廠'] || "",
-                routeCode: String(r['路線碼'] || r['路線'] || ""),
-                busNumber: String(r['車號'] || "UNKNOWN").toUpperCase(),
-                busType: r['車型'] || "Other",
-                note: r['備註'] || "批次匯入"
-            });
-            count++;
-            if(count % batchSize === 0) { await batch.commit(); batch = db.batch(); }
-        }
-        if(count % batchSize !== 0) await batch.commit();
-        showToast('success', `成功匯入 ${count} 筆資料`);
-    } catch(e) { console.error(e); showToast('error', '匯入發生錯誤'); }
-    finally { toggleLoading(false); }
-}
-
-// 🌟 新增 Helper：取得完整統計資料
+// --- 統計與匯出 ---
 async function getFullDataForStats() {
-    // 1. 如果 useLimit 為 false，代表列表已經載入全部，直接用 (最快)
     if (!useLimit && globalRecords.length > 0) return globalRecords;
-
-    // 2. 如果列表只有部分資料，則必須去雲端抓一次完整的 (確保統計正確)
     const showAll = document.getElementById("showAllData")?.checked;
-    const user = auth.currentUser;
-    if (!user && !showAll) return [];
-
+    const user = auth.currentUser; if (!user && !showAll) return [];
     let query = db.collection("busRecords");
     if (!showAll) query = query.where("userId", "==", user.uid);
-    
-    // 使用 .get() 抓取完整快照 (不排序以加速)
-    const snapshot = await query.get();
-    const data = [];
-    snapshot.forEach(doc => data.push(doc.data()));
-    return data;
+    const snapshot = await query.get(); const data = [];
+    snapshot.forEach(doc => data.push(doc.data())); return data;
 }
 
-// 🌟 修改：支援自動全量統計 (圖表)
 async function showStats() {
     toggleLoading(true);
     try {
         const sourceData = await getFullDataForStats();
-        
-        if(sourceData.length===0) {
-            toggleLoading(false);
-            return showToast('info', '目前沒有資料');
-        }
-        
+        if(sourceData.length===0) { toggleLoading(false); return showToast('info', '目前沒有資料'); }
         document.getElementById("statsModal").style.display = "block";
-        
         document.getElementById("statTotal").textContent = sourceData.length;
         document.getElementById("statUnique").textContent = new Set(sourceData.map(r=>r.busNumber)).size;
-
-        const opCounts = {};
-        const routeCounts = {};
         
+        const opCounts = {}; const routeCounts = {}; const userCounts = {};
         sourceData.forEach(r => {
             const op = OPERATOR_NAMES[r.operator] || r.operator;
             opCounts[op] = (opCounts[op] || 0) + 1;
-            
-            const rt = r.routeCode || "未填寫";
-            routeCounts[rt] = (routeCounts[rt] || 0) + 1;
+            const rt = r.routeCode || "未填寫"; routeCounts[rt] = (routeCounts[rt] || 0) + 1;
+            const uname = r.userName || r.userEmail || "未知使用者"; userCounts[uname] = (userCounts[uname] || 0) + 1;
         });
-
-        renderChart('operatorChart', '客運搭乘分佈', opCounts, 'pie');
-        renderChart('routeChart', '最常搭的路線 (Top 10)', routeCounts, 'bar');
-    } catch(e) {
-        console.error(e);
-        showToast('error', '統計讀取失敗');
-    } finally {
-        toggleLoading(false);
-    }
+        
+        renderChart('operatorChart', '🚌 客運搭乘分佈', opCounts, 'pie');
+        renderChart('routeChart', '🛣️ 最常搭的路線 (Top 10)', routeCounts, 'bar');
+        renderChart('userChart', '👑 搭車神人排行榜 (Top 10)', userCounts, 'bar');
+        
+    } catch(e) { showToast('error', '統計讀取失敗'); } finally { toggleLoading(false); }
 }
 
 function renderChart(canvasId, label, dataObj, type) {
     const ctx = document.getElementById(canvasId).getContext('2d');
     const sortedData = Object.entries(dataObj).sort((a,b)=>b[1]-a[1]).slice(0, 10);
-    const labels = sortedData.map(d => d[0]);
-    const values = sortedData.map(d => d[1]);
-
     if(charts[canvasId]) charts[canvasId].destroy();
-
     charts[canvasId] = new Chart(ctx, {
         type: type,
-        data: {
-            labels: labels,
-            datasets: [{
-                label: '次數',
-                data: values,
-                backgroundColor: [
-                    '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
-                    '#6366f1', '#ec4899', '#14b8a6', '#f97316', '#64748b'
-                ],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                title: { display: true, text: label, font: {size: 16} },
-                legend: { display: type === 'pie' }
-            }
-        }
+        data: { labels: sortedData.map(d=>d[0]), datasets: [{ label: '次數', data: sortedData.map(d=>d[1]), backgroundColor: ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#6366f1','#ec4899','#14b8a6','#f97316','#64748b'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: label, font: {size: 16} }, legend: { display: type === 'pie' } } }
     });
 }
-
 function closeStats() { document.getElementById("statsModal").style.display="none"; }
 
-// 🌟 修改：支援自動全量統計 (列表)
 async function showBusStats() {
     toggleLoading(true);
     try {
         const sourceData = await getFullDataForStats();
-
-        if(sourceData.length===0) {
-            toggleLoading(false);
-            return showToast('info', '目前沒有資料');
-        }
-
+        if(sourceData.length===0) { toggleLoading(false); return showToast('info', '目前沒有資料'); }
         document.getElementById("busStatsModal").style.display = "block";
-
-        const busMap = {};
+        const map = {};
         sourceData.forEach(r => {
-            const num = r.busNumber;
-            if(!busMap[num]) {
-                busMap[num] = {
-                    count: 0,
-                    operator: OPERATOR_NAMES[r.operator] || r.operator
-                };
-            }
-            busMap[num].count++;
+            const b = r.busNumber||"UNKNOWN";
+            if(!map[b]) map[b] = {c:0, o: OPERATOR_NAMES[r.operator]||r.operator};
+            map[b].c++;
         });
-
-        const tbody = document.getElementById("busListBody");
-        tbody.innerHTML = "";
-        
-        Object.keys(busMap).sort().forEach(num => {
-            const item = busMap[num];
-            const row = `<tr>
-                <td><b>${num}</b></td>
-                <td>${item.count}</td>
-                <td>${item.operator}</td>
-            </tr>`;
-            tbody.innerHTML += row;
+        const tbody = document.getElementById("busListBody"); tbody.innerHTML = "";
+        Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([k,v]) => {
+            tbody.innerHTML += `<tr><td><b>${k}</b></td><td>${v.c}</td><td>${v.o}</td></tr>`;
         });
-    } catch(e) {
-        console.error(e);
-        showToast('error', '統計讀取失敗');
-    } finally {
-        toggleLoading(false);
-    }
+    } catch(e) { showToast('error', '統計讀取失敗'); } finally { toggleLoading(false); }
 }
-function closeBusStats() { document.getElementById("busStatsModal").style.display = "none"; }
+function closeBusStats() { document.getElementById("busStatsModal").style.display="none"; }
+
+// 🌟 產生年度回顧圖片邏輯
+function generateRecapModal() {
+    if (myAllRecords.length === 0) return showToast('warning', '您需要先新增紀錄喔！');
+    
+    document.getElementById("recapTotal").textContent = myAllRecords.length;
+    const opCounts = {}; const routeCounts = {};
+    myAllRecords.forEach(r => {
+        const op = OPERATOR_NAMES[r.operator] || r.operator;
+        opCounts[op] = (opCounts[op] || 0) + 1;
+        if(r.routeCode) routeCounts[r.routeCode] = (routeCounts[r.routeCode] || 0) + 1;
+    });
+    
+    const bestOp = Object.entries(opCounts).sort((a,b)=>b[1]-a[1])[0];
+    const bestRoute = Object.entries(routeCounts).sort((a,b)=>b[1]-a[1])[0];
+    
+    document.getElementById("recapOp").textContent = bestOp ? `${bestOp[0]} (${bestOp[1]}次)` : "無資料";
+    document.getElementById("recapRoute").textContent = bestRoute ? `${bestRoute[0]} (${bestRoute[1]}次)` : "無資料";
+
+    document.getElementById("recapModal").style.display = "block";
+}
+
+function closeRecap() { document.getElementById("recapModal").style.display = "none"; }
+
+function downloadRecap() {
+    const card = document.getElementById("recapCard");
+    toggleLoading(true, "繪製圖片中...");
+    html2canvas(card, { scale: 2, backgroundColor: "#1e3a8a" }).then(canvas => {
+        canvas.toBlob(function(blob) {
+            saveAs(blob, "我的公車回顧.png");
+            toggleLoading(false);
+            showToast('success', '已成功下載圖片！');
+        });
+    });
+}
 
 window.onclick = e => { if(e.target.className==="modal") e.target.style.display="none"; }
 
+// --- Excel 匯入/匯出 ---
+function exportCSV() {
+    if(globalRecords.length===0) return showToast('info', '無資料');
+    const data = globalRecords.map(r => ({
+        "時間": r.timestamp?r.timestamp.toDate().toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true}):"", 
+        "星期": r.weekday, "客運": OPERATOR_NAMES[r.operator]||r.operator, "車廠": r.manufacturer,
+        "路線": r.routeCode, "車號": r.busNumber, "車型": BUSTYPE_NAMES[r.busType]||r.busType,
+        "評分": r.rating || "5", "天氣": r.weather || "☀️ 晴天", "備註": r.note
+    }));
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), "Records");
+    saveAs(new Blob([XLSX.write(wb,{bookType:'csv',type:'array'})],{type:'text/csv;charset=utf-8;'}), "bus_record.csv");
+}
+
+function handleFileSelect(input) {
+    const f = input.files[0]; if(!f) return; const r = new FileReader();
+    r.onload = e => {
+        const data = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), {type:'array'}).Sheets[XLSX.read(new Uint8Array(e.target.result), {type:'array'}).SheetNames[0]]);
+        if(confirm(`匯入 ${data.length} 筆資料?`)) processImport(data); input.value = "";
+    }; r.readAsArrayBuffer(f);
+}
+function parseImportTime(val) {
+    if (!val) return new Date(); if (val instanceof Date) return val;
+    if (typeof val === 'number') return new Date(Math.round((val - 25569) * 86400 * 1000));
+    if (typeof val === 'string') {
+        if (val.includes("上午") || val.includes("下午")) {
+            const p = val.match(/(\d+)\/(\d+)\/(\d+)\s+(上午|下午)(\d+):(\d+):(\d+)/);
+            if (p) { let [_, y, m, d, ap, h, min, s] = p; h = parseInt(h); if (ap === "下午" && h < 12) h += 12; if (ap === "上午" && h === 12) h = 0; return new Date(y, m-1, d, h, min, s); }
+        }
+        const d = new Date(val); if (!isNaN(d.getTime())) return d;
+    } return new Date();
+}
+async function processImport(data) {
+    const user = auth.currentUser; if(!user) return; toggleLoading(true, "批次匯入中..."); let count = 0;
+    try {
+        let batch = db.batch();
+        for(let i=0; i<data.length; i++) {
+            const r = data[i], importTime = parseImportTime(r['時間'] || r['時間戳記']);
+            batch.set(db.collection("busRecords").doc(), {
+                userId: user.uid, userEmail: user.email, userName: user.displayName || user.email.split('@')[0],
+                timestamp: firebase.firestore.Timestamp.fromDate(importTime), weekday: "星期"+["日","一","二","三","四","五","六"][importTime.getDay()],
+                operator: r['客運業者'] || r['客運'] || "Other", manufacturer: r['車廠'] || "", routeCode: String(r['路線碼'] || r['路線'] || ""),
+                busNumber: String(r['車號'] || "UNKNOWN").toUpperCase(), busType: r['車型'] || "Other",
+                rating: r['評分'] || "5", weather: r['天氣'] || "☀️ 晴天", note: r['備註'] || "批次匯入"
+            });
+            count++; if(count % 500 === 0) { await batch.commit(); batch = db.batch(); }
+        }
+        if(count % 500 !== 0) await batch.commit(); showToast('success', `成功匯入 ${count} 筆資料`);
+    } catch(e) { showToast('error', '匯入發生錯誤'); } finally { toggleLoading(false); }
+}
 </script>
 </body>
 </html>
