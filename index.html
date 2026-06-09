@@ -105,9 +105,7 @@
     <div id="userInfo" style="display:none;">
       <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; border-bottom: 1px solid #e5e7eb; padding-bottom: 15px; margin-bottom: 15px;">
           <div style="display: flex; align-items: center; gap: 15px;">
-              <div style="width: 50px; height: 50px; background-color: #2563eb; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold;">
-                  👤
-              </div>
+              <div style="width: 50px; height: 50px; background-color: #2563eb; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold;">👤</div>
               <div>
                   <div style="font-size: 1.2em; font-weight: bold; color: #1f2937;">歡迎回來，<span id="userEmailDisplay"></span></div>
                   <div style="font-size: 0.9em; color: #6b7280;">累積搭乘紀錄：<b id="myTotalRecords" style="color: #059669;">0</b> 趟</div>
@@ -191,9 +189,6 @@
         </div>
 
         <div class="form-group" style="background: #e0f2fe; padding: 15px; border-radius: 8px; display: flex; align-items: center;">
-            <div style="display: none;">
-                <input type="file" id="photoUpload" accept="image/*">
-            </div>
             <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
                 <input type="checkbox" id="useLocation" style="width: 20px; height: 20px; margin-right: 10px;">
                 📍 附上目前定位座標 (地圖打卡)
@@ -340,6 +335,9 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 // --- 2. 全域變數 ---
+// ⚠️ 請修改為您的管理員 Email ⚠️
+const ADMIN_EMAIL = "aajacky3254@gmail.com"; 
+
 let editDocId = null;
 let globalRecords = []; 
 let myAllRecords = [];  
@@ -376,7 +374,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             operatorToManufacturer = data.operatorToManufacturer || {};
             busGroups = data.groups || {};
             
-            // 🌟 嚴格依照要求的順序排列
             const GROUP_ORDER = [
                 "臺中市各業者", 
                 "基隆/新北/臺北/桃園", 
@@ -406,7 +403,6 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             });
             
-            // 防呆：不在清單上的群組加在後面
             for (const [groupName, opIds] of Object.entries(busGroups)) {
                 if (!GROUP_ORDER.includes(groupName)) {
                     const groupChoices = opIds.map(id => ({ value: id, label: OPERATOR_NAMES[id] || id }));
@@ -429,48 +425,38 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     document.getElementById("loadingOverlay").style.display = "none";
-
-  // 🌟 您的管理員信箱 (請確認與 admin.html 裡的一致)
-const ADMIN_EMAIL = "aajacky3254@gmail.com";
+    
     auth.onAuthStateChanged(user => {
-    if (user) {
-        document.getElementById("userEmailDisplay").textContent = user.displayName || user.email.split('@')[0];
-        if(user.displayName) document.getElementById("nicknameInput").value = user.displayName;
-        document.getElementById("loginForm").style.display = "none";
-        document.getElementById("userInfo").style.display = "block";
-        
-        // 判斷是否為管理員，決定要不要顯示後台按鈕
-        if (user.email === ADMIN_EMAIL) {
-            document.getElementById("adminBtn").style.display = "inline-flex";
+        if (user) {
+            document.getElementById("userEmailDisplay").textContent = user.displayName || user.email.split('@')[0];
+            if(user.displayName) document.getElementById("nicknameInput").value = user.displayName;
+            document.getElementById("loginForm").style.display = "none";
+            document.getElementById("userInfo").style.display = "block";
+            
+            // 🌟 判斷是否為管理員
+            if (user.email === ADMIN_EMAIL) {
+                document.getElementById("adminBtn").style.display = "inline-flex";
+            } else {
+                document.getElementById("adminBtn").style.display = "none";
+            }
+            
+            loadRecords(user.uid);
+            fetchMyAllRecords(user.uid); 
         } else {
-            document.getElementById("adminBtn").style.display = "none";
+            document.getElementById("loginForm").style.display = "block";
+            document.getElementById("userInfo").style.display = "none";
+            document.getElementById("recordTable").querySelector("tbody").innerHTML = "";
+            globalRecords = []; myAllRecords = [];
         }
-        
-        loadRecords(user.uid);
-        fetchMyAllRecords(user.uid); // 抓取個人全量資料
-    } else {
-        document.getElementById("loginForm").style.display = "block";
-        document.getElementById("userInfo").style.display = "none";
-        document.getElementById("recordTable").querySelector("tbody").innerHTML = "";
-        globalRecords = []; myAllRecords = [];
-    }
+    });
 });
 
-// 🌟 修改原本的 fetchMyAllRecords，讓它同時更新個人資料卡的總次數
-function fetchMyAllRecords(uid) {
-    db.collection("busRecords").where("userId", "==", uid).onSnapshot(s => {
-        myAllRecords = [];
-        s.docs.forEach(d => myAllRecords.push(d.data()));
-        // 更新畫面的個人總次數
-        document.getElementById("myTotalRecords").textContent = myAllRecords.length;
-    });
-}
-  
 // 背景抓取個人所有資料
 function fetchMyAllRecords(uid) {
     db.collection("busRecords").where("userId", "==", uid).onSnapshot(s => {
         myAllRecords = [];
         s.docs.forEach(d => myAllRecords.push(d.data()));
+        document.getElementById("myTotalRecords").textContent = myAllRecords.length;
     });
 }
 
@@ -696,7 +682,7 @@ function resetForm() {
     updateTimestamp();
 }
 
-// 🌟 載入資料 
+// 🌟 載入資料 (結合天氣、徽章與附件)
 function loadRecords(uid) {
     const showAll = document.getElementById("showAllData")?.checked;
     let query = db.collection("busRecords");
@@ -721,11 +707,10 @@ function loadRecords(uid) {
             const badges = getUserBadges(r.userId, nameToShow); 
             const displayUser = isMine ? `👤 <b>${r.userName || "我"}</b><br>${badges}` : `${nameToShow}<br>${badges}`;
             
-            // 處理天氣顯示
             const weatherStr = r.weather ? r.weather : "⏳ 尚未記錄";
             
             let noteHtml = `<div style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.note || ""}</div>`;
-            if (r.location) noteHtml += `<a href="http://maps.google.com/maps?q=${r.location.lat},${r.location.lng}" target="_blank" style="display:inline-block; margin-top:5px; padding:2px 6px; background:#3b82f6; color:white; border-radius:4px; text-decoration:none; font-size:12px;">📍 地圖打卡</a>`;
+            if (r.location) noteHtml += `<a href="https://www.google.com/maps/search/?api=1&query=${r.location.lat},${r.location.lng}" target="_blank" style="display:inline-block; margin-top:5px; padding:2px 6px; background:#3b82f6; color:white; border-radius:4px; text-decoration:none; font-size:12px;">📍 地圖打卡</a>`;
 
             row.innerHTML = `
                 <td>${displayUser}</td><td>${ts}</td><td>${r.weekday}</td><td>${opName}</td>
